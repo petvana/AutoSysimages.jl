@@ -2,39 +2,57 @@ module AutoSysimages
 
 #using Preferences
 using REPL
-import LLVM_full_jll
-import Pkg
+using LLVM_full_jll
+using Pkg
+using Pidfile
+using Dates
 
 const PROJECT_ROOT = @__DIR__
 
-autosysimages_dir = "$(DEPOT_PATH[1])/autosysimages/v$(VERSION.major).$(VERSION.minor)"
-
-global_snoop_file =  joinpath(autosysimages_dir, "snoop-file.jl")
+autosysimages_dir = nothing
+global_snoop_file = nothing
 snoop_file = nothing
 snoop_file_io = nothing
-
 project_path = nothing
 
 function get_sysimage()
-    autosysimages_image = "$autosysimages_dir/chained.so"
-    return autosysimages_image
+    set_sysimage_dir()
+    !isdir(autosysimages_dir) && return nothing
+    files = readdir(autosysimages_dir, join = true)
+    sysimages = filter(x -> endswith(x, ".so"), files) |> sort
+    return isempty(sysimages) ? nothing : sysimages[end]
 end
 
 function get_autosysimage_args()
     autosysimages_image = get_sysimage()
     args = ""
-    if isfile(autosysimages_image)
+    if !isnothing(autosysimages_image)
         args *= " -J $autosysimages_image"
     end
     return args * " -L $PROJECT_ROOT/start.jl"
+end
+
+function set_sysimage_dir()
+    global project_path = Pkg.project().path
+    project_hash = hash(project_path)
+    global autosysimages_dir =
+        "$(DEPOT_PATH[1])/autosysimages/v$(VERSION.major).$(VERSION.minor)/$project_hash"
+    global global_snoop_file =  joinpath(autosysimages_dir, "snoop-file.jl")
 end
 
 function start()
     @info "Package AutoSysimages started."
     # @show autosysimages_image
     # @show isfile(autosysimages_image)
+    set_sysimage_dir()
+    if !isdir(autosysimages_dir)
+        mkpath(autosysimages_dir)
+        open("$autosysimages_dir/pathtoproject.txt", "w") do io
+            print(io, "$project_path\n")
+        end
+    end
     start_snooping()
-    global project_path = Pkg.project().path
+    @info "AutoSysimages: Using directory $autosysimages_dir"
     if isinteractive()
         # TODO - find better way to detect generated sysimage
         if !endswith(unsafe_string(Base.JLOptions().image_file), "chained.so")
@@ -161,14 +179,15 @@ include("$precompile_file_path")
         run(`$julia_cmd --sysimage-native-code=chained --sysimage=$julia_so --output-o $chained_dir/chained.o.a -e $source_txt`)
 
         cd(chained_dir)
-        # TODO - use various files
-        autosysimages_image = "$autosysimages_dir/chained.so"
+        t = Dates.now()
+        autosysimages_image = "$autosysimages_dir/sys-$t.so"
         run(`$ar x chained.o.a`) # Extract new sysimage files
         run(`$clang -shared -o $autosysimages_image text.o data.o text-old.o`)
         cd("..")
         @info "New sysimage $autosysimages_image generated."
         @warn "Restart of Julia is necessary to load the new sysimage."
     end
+    # TODO - remove old sysimages
 end
 
 end # module
