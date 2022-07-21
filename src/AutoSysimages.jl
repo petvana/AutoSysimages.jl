@@ -16,6 +16,7 @@ snoop_file_io = nothing
 project_path = nothing
 
 function get_sysimage()
+    # TODO - move to a different location not to set dir repetitively
     set_sysimage_dir()
     !isdir(autosysimages_dir) && return nothing
     files = readdir(autosysimages_dir, join = true)
@@ -55,11 +56,17 @@ function start()
     @info "AutoSysimages: Using directory $autosysimages_dir"
     if isinteractive()
         sysimage_dir = "$(DEPOT_PATH[1])/autosysimages"
-        if !startswith(unsafe_string(Base.JLOptions().image_file), sysimage_dir)
+        image_file = unsafe_string(Base.JLOptions().image_file)
+        if !startswith(image_file, sysimage_dir)
             println("There is no sysimage for this project. Do you want to build it?")
             if REPL.TerminalMenus.request(REPL.TerminalMenus.RadioMenu(["yes", "no"])) == 1
                 build_system_image()
             end
+        else
+            # Lock the system image not to be deleted.
+            pid = getpid()
+            lock_file = "$image_file.$pid"
+            mkpidlock(lock_file)
         end
     end
 end
@@ -187,7 +194,20 @@ include("$precompile_file_path")
         @info "New sysimage $autosysimages_image generated."
         @warn "Restart of Julia is necessary to load the new sysimage."
     end
-    # TODO - remove old sysimages
+    remove_unused_sysimages()
+end
+
+function remove_unused_sysimages()
+    !isdir(autosysimages_dir) && return
+    files = readdir(autosysimages_dir, join = true)
+    sysimages = filter(x -> endswith(x, ".so"), files)
+    for si in sysimages
+        locks = filter(x -> startswith(x, si), files)
+        if length(locks) == 1 && si != get_sysimage()
+            @info "AutoSysimages: Removing old sysimage $si"
+            rm(si)
+        end
+    end
 end
 
 end # module
