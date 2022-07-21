@@ -1,6 +1,6 @@
 module AutoSysimages
 
-#using Preferences
+using Preferences
 using REPL
 using LLVM_full_jll
 using Pkg
@@ -41,10 +41,20 @@ function set_sysimage_dir()
     global global_snoop_file =  joinpath(autosysimages_dir, "snoop-file.jl")
 end
 
+function update_interface(repl)
+    if !isdefined(repl, :interface)
+        repl.interface = REPL.setup_interface(repl)
+    end
+    if isdefined(Base, :active_repl) && isdefined(Base.active_repl, :interface) 
+        mode = Base.active_repl.interface.modes[1]
+        mode.prompt = "jusim> "
+        mode.prompt_prefix = Base.text_colors[:blue]
+    end
+end
+
 function start()
     @info "Package AutoSysimages started."
-    # @show autosysimages_image
-    # @show isfile(autosysimages_image)
+    atreplinit(update_interface)
     set_sysimage_dir()
     if !isdir(autosysimages_dir)
         mkpath(autosysimages_dir)
