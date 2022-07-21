@@ -54,8 +54,8 @@ function start()
     start_snooping()
     @info "AutoSysimages: Using directory $autosysimages_dir"
     if isinteractive()
-        # TODO - find better way to detect generated sysimage
-        if !endswith(unsafe_string(Base.JLOptions().image_file), "chained.so")
+        sysimage_dir = "$(DEPOT_PATH[1])/autosysimages"
+        if !startswith(unsafe_string(Base.JLOptions().image_file), sysimage_dir)
             println("There is no sysimage for this project. Do you want to build it?")
             if REPL.TerminalMenus.request(REPL.TerminalMenus.RadioMenu(["yes", "no"])) == 1
                 build_system_image()
