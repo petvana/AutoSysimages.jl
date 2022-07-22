@@ -52,6 +52,11 @@ function update_interface(repl)
     end
 end
 
+"""
+    start()
+
+This starts AutoSysimages package.
+"""
 function start()
     @info "Package AutoSysimages started."
     atreplinit(update_interface)
@@ -177,6 +182,7 @@ function build_system_image()
         source_txt = "Base.__init_build();"
         source_txt *= """
 module PrecompileStagingArea;
+    # using AutoSysimages
     # TODO - load libraries
 end;
     """
