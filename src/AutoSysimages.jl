@@ -79,7 +79,7 @@ function start()
     if isinteractive()
         _update_prompt()
         if !is_asysimg
-            # TODO - move at the end
+            # TODO - improve the logic for autonomic rebuild
             println("There is no sysimage for this project. Do you want to build it?")
             if REPL.TerminalMenus.request(REPL.TerminalMenus.RadioMenu(["yes", "no"])) == 1
                 build_sysimage()
@@ -240,7 +240,7 @@ function build_sysimage()
             building_task = @task _build_system_image()
             schedule(building_task)
         else
-            @warn "No" # TODO
+            @warn "System image is already being build!"
         end
     end
 end
