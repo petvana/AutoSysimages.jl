@@ -96,60 +96,51 @@ function _start_snooping()
         @info("Snooping -> $(snoop_file)")
         global snoop_file_io = open(snoop_file, "w")
         ccall(:jl_dump_compiles, Cvoid, (Ptr{Cvoid},), snoop_file_io.handle)
-        atexit(stop_snooping)
+        atexit(_stop_snooping)
     else
         @warn("Snooping is already running -> $(snoop_file)")
     end
 end
 
-function stop_snooping()
+function _stop_snooping()
     global snoop_file_io
-    try
-        if snoop_file_io === nothing
-            @warn("No active snooping file")
-            return 
-        end
-        ccall(:jl_dump_compiles, Cvoid, (Ptr{Cvoid},), C_NULL)
-        close(snoop_file_io)
-        snoop_file_io = nothing
-        save_statements()
-        rm("$(snoop_file)")
-    catch e
-        @warn(e)
+    if isnothing(snoop_file_io)
+        @warn("No active snooping file")
+        return 
     end
+    ccall(:jl_dump_compiles, Cvoid, (Ptr{Cvoid},), C_NULL)
+    close(snoop_file_io)
+    snoop_file_io = nothing
+    _save_statements()
+    rm("$(snoop_file)")
 end
 
-function save_statements()
-    try
-        if snoop_file_io !== nothing
-            flush(snoop_file_io)
-        end       
-        lines = readlines("$(snoop_file)")
-        open("$(snoop_file).txt", "w") do file
-            for line in lines
-                sp = split(line, "\t")
-                if length(sp) == 2
-                    function_str = sp[2][2:end-1]
-                    write(file, function_str * "\n")
-                end          
+function _save_statements()
+    !isnothing(snoop_file_io) && flush(snoop_file_io)     
+    lines = readlines(snoop_file)
+    act_precompiles = String[]
+    open("$(snoop_file).txt", "w") do file
+        for line in lines
+            sp = split(line, "\t")
+            if length(sp) == 2
+                push!(act_precompiles, sp[2][2:end-1])
+            end          
+        end
+    end
+
+    global precompiles_file
+    @info("Copy snooped function into $(precompiles_file)")
+    @time mkpidlock("$precompiles_file.lock") do
+        oldprec = isfile(precompiles_file) ? String[] : readlines(precompiles_file)
+        old = Set{String}(oldprec)
+        open(precompiles_file, "a") do file
+            for precompile in act_precompiles
+                if precompile ∉ old
+                    push!(old, precompile)
+                    write(file, "$precompile\n")   
+                end     
             end
         end
-
-        @info("Copy snooped function into $(precompiles_file)")
-        if isfile(precompiles_file)
-            # TODO - reimplement to Julia
-            run(`sort $(snoop_file).txt $(precompiles_file) -o $(precompiles_file).tmp`)
-        else
-            # TODO - reimplement to Julia
-            mkpath(active_dir)
-            run(`sort $(snoop_file).txt -o $(precompiles_file).tmp`)
-        end
-        # TODO - reimplement to Julia
-        run(pipeline(`uniq $(precompiles_file).tmp`, stdout="$(precompiles_file)"))
-        rm("$(snoop_file).txt")
-        rm("$(precompiles_file).tmp")
-    catch e
-        @warn(e)
     end
 end
 
@@ -260,7 +251,7 @@ end
 Remove old sysimages for the current project (`active_dir`).
 """
 function remove_old_sysimages()
-    mkpidlock(joinpath(active_dir, "rm.lock")) do lock
+    mkpidlock(joinpath(active_dir, "rm.lock")) do
         files = readdir(active_dir, join = true)
         sysimages = filter(x -> endswith(x, ".so"), files)
         latest = latest_sysimage()

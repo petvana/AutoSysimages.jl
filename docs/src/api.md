@@ -24,4 +24,7 @@ Pages = ["api.md"]
 ```@docs
 start
 latest_sysimage
+julia_args
+build_sysimage
+remove_old_sysimages
 ```
