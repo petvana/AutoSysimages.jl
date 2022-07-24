@@ -80,6 +80,8 @@ function start()
         _update_prompt()
         if !is_asysimg
             # TODO - improve the logic for autonomic rebuild
+            # @set_preferences!("autobuild" => "yes")
+            # @load_preference("autobuild")
             println("There is no sysimage for this project. Do you want to build it?")
             if REPL.TerminalMenus.request(REPL.TerminalMenus.RadioMenu(["yes", "no"])) == 1
                 build_sysimage()
@@ -164,15 +166,6 @@ function _update_prompt(isbuilding::Bool = false)
         end
     end
 end
-
-#=
-set_julia_path(new_path) = @set_preferences!("julia_path" => new_path)
-
-get_julia_path() = something(
-    @load_preference("julia_path"), 
-    joinpath(Sys.BINDIR::String, Base.julia_exename())
-)
-=#
 
 function _build_system_image()
     # Get path to compilation tools from LLVM_full_jll
