@@ -7,9 +7,8 @@ using Pkg
 using Pidfile
 using Dates
 
-project_path::String = ""
 active_dir::String = ""
-global_snoop_file::String = ""
+precompiles_file::String = ""
 is_asysimg::Bool = false
 
 snoop_file = nothing
@@ -19,12 +18,19 @@ building_task = nothing
 const building_task_lock = ReentrantLock()
 
 function __init__()
-    global project_path = Pkg.project().path
+    # Set global variables
+    project_path = Pkg.project().path
     project_hash = hash(project_path)
     asysimg_dir = joinpath(DEPOT_PATH[1], "autosysimages")
     global active_dir = joinpath(asysimg_dir, "v$(VERSION.major).$(VERSION.minor)", "$project_hash")
-    mkpath(active_dir)
-    global global_snoop_file =  joinpath(active_dir, "snoop-file.jl")
+    if !isdir(active_dir)
+        mkpath(active_dir)
+        # Print information about the project
+        open(joinpath(active_dir, "pathtoproject.txt"), "w") do io
+            print(io, "$project_path\n")
+        end
+    end
+    global precompiles_file =  joinpath(active_dir, "snoop-file.jl")
     image = unsafe_string(Base.JLOptions().image_file)
     # Detect if loaded `image` was produced by AutoSysimages.jl
     global is_asysimg = startswith(basename(image), "asysimg-")
@@ -34,40 +40,39 @@ function __init__()
     end
 end
 
+"""
+    latest_sysimage()
+
+Return the path to the latest system image produced by AutoSysimages,
+or `nothing` if no such image exits.
+"""
 function latest_sysimage()
     files = readdir(active_dir, join = true)
     sysimages = filter(x -> endswith(x, ".so"), files) |> sort
     return isempty(sysimages) ? nothing : sysimages[end]
 end
 
+"""
+    julia_args()
+
+Get Julia arguments for running AutoSysimages:
+- `"-J [sysimage]"` - sets the `latest_sysimage()`, if it exits,
+- `"-L [@__DIR__]/start.jl"` - starts AutoSysimages automatically.
+"""
 function julia_args()
     image = latest_sysimage()
     startfile = joinpath(@__DIR__, "start.jl")
     return (isnothing(image) ? "" : " -J $image") * " -L $startfile" 
 end
 
-# TODO - use this, asynchronously?
-function update_prompt(isbuilding::Bool = false)
-    if isdefined(Base, :active_repl) && isdefined(Base.active_repl, :interface) 
-        mode = Base.active_repl.interface.modes[1]
-        mode.prompt = "jusim> "
-        mode.prompt_prefix = Base.text_colors[isbuilding ? :red : :blue]
-    end
-end
-
 """
     start()
 
-This starts AutoSysimages package.
+Starts AutoSysimages package. It's usually called by `start.jl` file;
+but it can be called manually as well.
 """
 function start()
     @info "Package AutoSysimages started."
-    if !isdir(active_dir)
-        mkpath(active_dir)
-        open("$active_dir/pathtoproject.txt", "w") do io
-            print(io, "$project_path\n")
-        end
-    end
     start_snooping()
     @info "AutoSysimages: Using directory $active_dir"
     if isinteractive()
@@ -128,21 +133,30 @@ function save_statements()
             end
         end
 
-        @info("Copy snooped function into $(global_snoop_file)")
-        if isfile(global_snoop_file)
+        @info("Copy snooped function into $(precompiles_file)")
+        if isfile(precompiles_file)
             # TODO - reimplement to Julia
-            run(`sort $(snoop_file).txt $(global_snoop_file) -o $(global_snoop_file).tmp`)
+            run(`sort $(snoop_file).txt $(precompiles_file) -o $(precompiles_file).tmp`)
         else
             # TODO - reimplement to Julia
             mkpath(active_dir)
-            run(`sort $(snoop_file).txt -o $(global_snoop_file).tmp`)
+            run(`sort $(snoop_file).txt -o $(precompiles_file).tmp`)
         end
         # TODO - reimplement to Julia
-        run(pipeline(`uniq $(global_snoop_file).tmp`, stdout="$(global_snoop_file)"))
+        run(pipeline(`uniq $(precompiles_file).tmp`, stdout="$(precompiles_file)"))
         rm("$(snoop_file).txt")
-        rm("$(global_snoop_file).tmp")
+        rm("$(precompiles_file).tmp")
     catch e
         @warn(e)
+    end
+end
+
+# TODO - use this, asynchronously?
+function update_prompt(isbuilding::Bool = false)
+    if isdefined(Base, :active_repl) && isdefined(Base.active_repl, :interface)
+        mode = Base.active_repl.interface.modes[1]
+        mode.prompt = "asysimg> "
+        mode.prompt_prefix = Base.text_colors[isbuilding ? :red : :blue]
     end
 end
 
@@ -187,8 +201,8 @@ end;
 include("$precompile_file_path")
     """
 
-        if isfile(global_snoop_file)
-            cp(global_snoop_file, "statements.txt", force=true)
+        if isfile(precompiles_file)
+            cp(precompiles_file, "statements.txt", force=true)
         end
         #julia_cmd = get_julia_path()
         julia_cmd = joinpath(Sys.BINDIR::String, Base.julia_exename())

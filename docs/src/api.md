@@ -22,5 +22,6 @@ Pages = ["api.md"]
 ## Functions
 
 ```@docs
-AutoSysimages.start
+start
+latest_sysimage
 ```
