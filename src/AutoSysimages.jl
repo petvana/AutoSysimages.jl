@@ -7,48 +7,41 @@ using Pkg
 using Pidfile
 using Dates
 
-const PROJECT_ROOT = @__DIR__
+project_path::String = ""
+active_dir::String = ""
+global_snoop_file::String = ""
 
-autosysimages_dir = nothing
-global_snoop_file = nothing
 snoop_file = nothing
 snoop_file_io = nothing
-project_path = nothing
 
-function get_sysimage()
-    # TODO - move to a different location not to set dir repetitively
-    set_sysimage_dir()
-    !isdir(autosysimages_dir) && return nothing
-    files = readdir(autosysimages_dir, join = true)
+building_task = nothing
+building_task_lock = ReentrantLock()
+
+function __init__()
+    global project_path = Pkg.project().path
+    project_hash = hash(project_path)
+    global active_dir = "$(DEPOT_PATH[1])/autosysimages/v$(VERSION.major).$(VERSION.minor)/$project_hash"
+    global global_snoop_file =  joinpath(active_dir, "snoop-file.jl")
+end
+
+function latest_sysimage()
+    files = readdir(active_dir, join = true)
     sysimages = filter(x -> endswith(x, ".so"), files) |> sort
     return isempty(sysimages) ? nothing : sysimages[end]
 end
 
-function get_autosysimage_args()
-    autosysimages_image = get_sysimage()
-    args = ""
-    if !isnothing(autosysimages_image)
-        args *= " -J $autosysimages_image"
-    end
-    return args * " -L $PROJECT_ROOT/start.jl"
+function get_julia_args()
+    image = latest_sysimage()
+    startfile = joinpath(@__DIR__, "start.jl")
+    return (isnothing(image) ? "" : " -J $image") * " -L $startfile" 
 end
 
-function set_sysimage_dir()
-    global project_path = Pkg.project().path
-    project_hash = hash(project_path)
-    global autosysimages_dir =
-        "$(DEPOT_PATH[1])/autosysimages/v$(VERSION.major).$(VERSION.minor)/$project_hash"
-    global global_snoop_file =  joinpath(autosysimages_dir, "snoop-file.jl")
-end
-
-function update_interface(repl)
-    if !isdefined(repl, :interface)
-        repl.interface = REPL.setup_interface(repl)
-    end
+# TODO - use this, asynchronously?
+function update_prompt(isbuilding::Bool = false)
     if isdefined(Base, :active_repl) && isdefined(Base.active_repl, :interface) 
         mode = Base.active_repl.interface.modes[1]
         mode.prompt = "jusim> "
-        mode.prompt_prefix = Base.text_colors[:blue]
+        mode.prompt_prefix = Base.text_colors[isbuilding ? :red : :blue]
     end
 end
 
@@ -59,16 +52,14 @@ This starts AutoSysimages package.
 """
 function start()
     @info "Package AutoSysimages started."
-    atreplinit(update_interface)
-    set_sysimage_dir()
-    if !isdir(autosysimages_dir)
-        mkpath(autosysimages_dir)
-        open("$autosysimages_dir/pathtoproject.txt", "w") do io
+    if !isdir(active_dir)
+        mkpath(active_dir)
+        open("$active_dir/pathtoproject.txt", "w") do io
             print(io, "$project_path\n")
         end
     end
     start_snooping()
-    @info "AutoSysimages: Using directory $autosysimages_dir"
+    @info "AutoSysimages: Using directory $active_dir"
     if isinteractive()
         sysimage_dir = "$(DEPOT_PATH[1])/autosysimages"
         image_file = unsafe_string(Base.JLOptions().image_file)
@@ -81,7 +72,9 @@ function start()
             # Lock the system image not to be deleted.
             pid = getpid()
             lock_file = "$image_file.$pid"
-            mkpidlock(lock_file)
+            @info "Lock $lock_file"
+            # Strore in global variable to preserve during whole run
+            global pidlock = mkpidlock(lock_file)
         end
     end
 end
@@ -139,7 +132,7 @@ function save_statements()
             run(`sort $(snoop_file).txt $(global_snoop_file) -o $(global_snoop_file).tmp`)
         else
             # TODO - reimplement to Julia
-            mkpath(autosysimages_dir)
+            mkpath(active_dir)
             run(`sort $(snoop_file).txt -o $(global_snoop_file).tmp`)
         end
         # TODO - reimplement to Julia
@@ -160,15 +153,16 @@ get_julia_path() = something(
 )
 =#
 
-llvm_config = LLVM_full_jll.get_llvm_config_path()
-objcopy = replace(llvm_config, "llvm-config" => "llvm-objcopy")
-ar = replace(llvm_config, "llvm-config" => "llvm-ar")
-clang = replace(llvm_config, "llvm-config" => "clang")
+function _build_system_image()
+    # Get path to compilation tools from LLVM_full_jll
+    llvm_config = LLVM_full_jll.get_llvm_config_path()
+    objcopy = replace(llvm_config, "llvm-config" => "llvm-objcopy")
+    ar = replace(llvm_config, "llvm-config" => "llvm-ar")
+    clang = replace(llvm_config, "llvm-config" => "clang")
 
-function build_system_image()
     mktempdir() do chained_dir
         @info "Building system image in $chained_dir"    
-        mkpath(autosysimages_dir)
+        mkpath(active_dir)
         cd(chained_dir)
         cp("$(DEPOT_PATH[3])/../../lib/julia/sys-o.a", "sys-o.a", force=true)
         run(`$ar x sys-o.a`)
@@ -177,10 +171,10 @@ function build_system_image()
         run(`$objcopy --remove-section .data.jl.sysimg_link text-old.o`) # rm the link between the native code and 
         cd("..")
 
-        precompile_file_path = "$PROJECT_ROOT/precompile.jl"
+        precompile_file_path = joinpath(@__DIR__, "precompile.jl")
+        source_txt = """
+Base.__init_build();
 
-        source_txt = "Base.__init_build();"
-        source_txt *= """
 module PrecompileStagingArea;
     # using AutoSysimages
     # TODO - load libraries
@@ -203,7 +197,7 @@ include("$precompile_file_path")
 
         cd(chained_dir)
         t = Dates.now()
-        autosysimages_image = "$autosysimages_dir/sys-$t.so"
+        autosysimages_image = "$active_dir/sys-$t.so"
         run(`$ar x chained.o.a`) # Extract new sysimage files
         run(`$clang -shared -o $autosysimages_image text.o data.o text-old.o`)
         cd("..")
@@ -213,13 +207,26 @@ include("$precompile_file_path")
     remove_unused_sysimages()
 end
 
+function build_system_image()
+    lock(building_task_lock) do
+        global building_task
+        if isnothing(building_task) || Base.istaskdone(building_task)
+            building_task = @task _build_system_image()
+            schedule(building_task)
+        else
+            @warn "No" # TODO
+        end
+    end
+end
+
 function remove_unused_sysimages()
-    !isdir(autosysimages_dir) && return
-    files = readdir(autosysimages_dir, join = true)
+    !isdir(active_dir) && return
+    files = readdir(active_dir, join = true)
     sysimages = filter(x -> endswith(x, ".so"), files)
+    latest = latest_sysimage()
     for si in sysimages
         locks = filter(x -> startswith(x, si), files)
-        if length(locks) == 1 && si != get_sysimage()
+        if length(locks) == 1 && si != latest
             @info "AutoSysimages: Removing old sysimage $si"
             rm(si)
         end
