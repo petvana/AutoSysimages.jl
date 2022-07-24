@@ -10,18 +10,28 @@ using Dates
 project_path::String = ""
 active_dir::String = ""
 global_snoop_file::String = ""
+is_asysimg::Bool = false
 
 snoop_file = nothing
 snoop_file_io = nothing
 
 building_task = nothing
-building_task_lock = ReentrantLock()
+const building_task_lock = ReentrantLock()
 
 function __init__()
     global project_path = Pkg.project().path
     project_hash = hash(project_path)
-    global active_dir = "$(DEPOT_PATH[1])/autosysimages/v$(VERSION.major).$(VERSION.minor)/$project_hash"
+    asysimg_dir = joinpath(DEPOT_PATH[1], "autosysimages")
+    global active_dir = joinpath(asysimg_dir, "v$(VERSION.major).$(VERSION.minor)", "$project_hash")
+    mkpath(active_dir)
     global global_snoop_file =  joinpath(active_dir, "snoop-file.jl")
+    image = unsafe_string(Base.JLOptions().image_file)
+    # Detect if loaded `image` was produced by AutoSysimages.jl
+    global is_asysimg = startswith(basename(image), "asysimg-")
+    if is_asysimg
+        # Prevent the sysimage to be removed during Julia execution
+        global _pidlock = mkpidlock("$image.$(getpid())")
+    end
 end
 
 function latest_sysimage()
@@ -30,7 +40,7 @@ function latest_sysimage()
     return isempty(sysimages) ? nothing : sysimages[end]
 end
 
-function get_julia_args()
+function julia_args()
     image = latest_sysimage()
     startfile = joinpath(@__DIR__, "start.jl")
     return (isnothing(image) ? "" : " -J $image") * " -L $startfile" 
@@ -61,20 +71,12 @@ function start()
     start_snooping()
     @info "AutoSysimages: Using directory $active_dir"
     if isinteractive()
-        sysimage_dir = "$(DEPOT_PATH[1])/autosysimages"
-        image_file = unsafe_string(Base.JLOptions().image_file)
-        if !startswith(image_file, sysimage_dir)
+        if !is_asysimg
+            # TODO - move at the end
             println("There is no sysimage for this project. Do you want to build it?")
             if REPL.TerminalMenus.request(REPL.TerminalMenus.RadioMenu(["yes", "no"])) == 1
                 build_system_image()
             end
-        else
-            # Lock the system image not to be deleted.
-            pid = getpid()
-            lock_file = "$image_file.$pid"
-            @info "Lock $lock_file"
-            # Strore in global variable to preserve during whole run
-            global pidlock = mkpidlock(lock_file)
         end
     end
 end
@@ -87,13 +89,13 @@ function start_snooping()
         @info("Snooping -> $(snoop_file)")
         global snoop_file_io = open(snoop_file, "w")
         ccall(:jl_dump_compiles, Cvoid, (Ptr{Cvoid},), snoop_file_io.handle)
-        atexit(finish_snooping)
+        atexit(finish)
     else
         @warn("Snooping is already running -> $(snoop_file)")
     end
 end
 
-function finish_snooping()
+function finish()
     global snoop_file_io
     try
         if snoop_file_io === nothing
@@ -197,7 +199,7 @@ include("$precompile_file_path")
 
         cd(chained_dir)
         t = Dates.now()
-        autosysimages_image = "$active_dir/sys-$t.so"
+        autosysimages_image = "$active_dir/asysimg-$t.so"
         run(`$ar x chained.o.a`) # Extract new sysimage files
         run(`$clang -shared -o $autosysimages_image text.o data.o text-old.o`)
         cd("..")

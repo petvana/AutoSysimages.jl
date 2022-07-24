@@ -6,5 +6,5 @@
 
 JULIA_EXE=julia
 
-julia_cmd=`$JULIA_EXE -e "using AutoSysimages; print(AutoSysimages.get_julia_args()); exit(0);" "$@"`
+julia_cmd=`$JULIA_EXE -e "using AutoSysimages; print(AutoSysimages.julia_args()); exit(0);" "$@"`
 $JULIA_EXE $julia_cmd "$@"
