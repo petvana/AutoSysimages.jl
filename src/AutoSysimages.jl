@@ -7,6 +7,8 @@ using Pkg
 using Pidfile
 using Dates
 
+export build_sysimage
+
 active_dir::String = ""
 precompiles_file::String = ""
 is_asysimg::Bool = false
@@ -72,21 +74,21 @@ Starts AutoSysimages package. It's usually called by `start.jl` file;
 but it can be called manually as well.
 """
 function start()
-    @info "Package AutoSysimages started."
-    start_snooping()
+    _start_snooping()
     @info "AutoSysimages: Using directory $active_dir"
     if isinteractive()
+        _update_prompt()
         if !is_asysimg
             # TODO - move at the end
             println("There is no sysimage for this project. Do you want to build it?")
             if REPL.TerminalMenus.request(REPL.TerminalMenus.RadioMenu(["yes", "no"])) == 1
-                build_system_image()
+                build_sysimage()
             end
         end
     end
 end
 
-function start_snooping()
+function _start_snooping()
     global snoop_file_io
     if snoop_file_io === nothing
         global snoop_file = "$(tempname())-snoop.jl"
@@ -94,13 +96,13 @@ function start_snooping()
         @info("Snooping -> $(snoop_file)")
         global snoop_file_io = open(snoop_file, "w")
         ccall(:jl_dump_compiles, Cvoid, (Ptr{Cvoid},), snoop_file_io.handle)
-        atexit(finish)
+        atexit(stop_snooping)
     else
         @warn("Snooping is already running -> $(snoop_file)")
     end
 end
 
-function finish()
+function stop_snooping()
     global snoop_file_io
     try
         if snoop_file_io === nothing
@@ -151,12 +153,24 @@ function save_statements()
     end
 end
 
-# TODO - use this, asynchronously?
-function update_prompt(isbuilding::Bool = false)
-    if isdefined(Base, :active_repl) && isdefined(Base.active_repl, :interface)
-        mode = Base.active_repl.interface.modes[1]
+# TODO - make it compatible with OhMyREPL
+function _update_prompt(isbuilding::Bool = false)
+    function _update_prompt(repl::AbstractREPL)
+        mode = repl.interface.modes[1]
         mode.prompt = "asysimg> "
         mode.prompt_prefix = Base.text_colors[isbuilding ? :red : :blue]
+    end
+    repl = nothing
+    if isdefined(Base, :active_repl) && isdefined(Base.active_repl, :interface)
+        repl = Base.active_repl
+        _update_prompt(repl)
+    else
+        atreplinit() do repl
+            if !isdefined(repl, :interface)
+                repl.interface = REPL.setup_interface(repl)
+            end
+            _update_prompt(repl)
+        end
     end
 end
 
@@ -220,10 +234,15 @@ include("$precompile_file_path")
         @info "New sysimage $autosysimages_image generated."
         @warn "Restart of Julia is necessary to load the new sysimage."
     end
-    remove_unused_sysimages()
+    remove_old_sysimages()
 end
 
-function build_system_image()
+"""
+    build_sysimage()
+
+Build new system image for the current project including snooped precompiles.
+"""
+function build_sysimage()
     lock(building_task_lock) do
         global building_task
         if isnothing(building_task) || Base.istaskdone(building_task)
@@ -235,16 +254,22 @@ function build_system_image()
     end
 end
 
-function remove_unused_sysimages()
-    !isdir(active_dir) && return
-    files = readdir(active_dir, join = true)
-    sysimages = filter(x -> endswith(x, ".so"), files)
-    latest = latest_sysimage()
-    for si in sysimages
-        locks = filter(x -> startswith(x, si), files)
-        if length(locks) == 1 && si != latest
-            @info "AutoSysimages: Removing old sysimage $si"
-            rm(si)
+"""
+    remove_old_sysimages()
+
+Remove old sysimages for the current project (`active_dir`).
+"""
+function remove_old_sysimages()
+    mkpidlock(joinpath(active_dir, "rm.lock")) do lock
+        files = readdir(active_dir, join = true)
+        sysimages = filter(x -> endswith(x, ".so"), files)
+        latest = latest_sysimage()
+        for si in sysimages
+            locks = filter(x -> startswith(x, si), files)
+            if length(locks) == 1 && si != latest
+                @info "AutoSysimages: Removing old sysimage $si"
+                rm(si)
+            end
         end
     end
 end

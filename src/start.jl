@@ -1,2 +1,2 @@
-import AutoSysimages
+using AutoSysimages
 AutoSysimages.start()
