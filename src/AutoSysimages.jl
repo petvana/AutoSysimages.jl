@@ -17,9 +17,9 @@ snoop_file = nothing
 snoop_file_io = nothing
 
 building_task = nothing
-const building_task_lock = ReentrantLock()
 
 function __init__()
+    global building_task_lock = ReentrantLock()
     # Set global variables
     project_path = Pkg.project().path
     project_hash = hash(project_path)
@@ -114,11 +114,15 @@ function _stop_snooping()
     close(snoop_file_io)
     snoop_file_io = nothing
     _save_statements()
-    rm("$(snoop_file)")
+    isfile(snoop_file) && rm(snoop_file)
+end
+
+function _flush_statements()
+    !isnothing(snoop_file_io) && flush(snoop_file_io)
 end
 
 function _save_statements()
-    !isnothing(snoop_file_io) && flush(snoop_file_io)     
+    _flush_statements()
     lines = readlines(snoop_file)
     act_precompiles = String[]
     open("$(snoop_file).txt", "w") do file
@@ -133,7 +137,7 @@ function _save_statements()
     global precompiles_file
     @info("Copy snooped function into $(precompiles_file)")
     @time mkpidlock("$precompiles_file.lock") do
-        oldprec = isfile(precompiles_file) ? String[] : readlines(precompiles_file)
+        oldprec = isfile(precompiles_file) ? readlines(precompiles_file) : String[]
         old = Set{String}(oldprec)
         open(precompiles_file, "a") do file
             for precompile in act_precompiles
