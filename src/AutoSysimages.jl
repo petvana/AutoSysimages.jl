@@ -9,9 +9,9 @@ using Dates
 
 export build_sysimage
 
-active_dir::String = ""
-precompiles_file::String = ""
-is_asysimg::Bool = false
+active_dir = ""
+precompiles_file = ""
+is_asysimg = false
 
 snoop_file = nothing
 snoop_file_io = nothing
@@ -91,19 +91,23 @@ function start()
 end
 
 """
-    build_sysimage()
+    build_sysimage(background::Bool = true)
 
-Build new system image for the current project including snooped precompiles.
+Build new system image (in `background`) for the current project including snooped precompiles.
 """
-function build_sysimage()
-    lock(building_task_lock) do
-        global building_task
-        if isnothing(building_task) || Base.istaskdone(building_task)
-            building_task = @task _build_system_image()
-            schedule(building_task)
-        else
-            @warn "System image is already being build!"
+function build_sysimage(background::Bool = true)
+    if background
+        lock(building_task_lock) do
+            global building_task
+            if isnothing(building_task) || Base.istaskdone(building_task)
+                building_task = @task _build_system_image()
+                schedule(building_task)
+            else
+                @warn "System image is already being build!"
+            end
         end
+    else
+        _build_system_image()
     end
 end
 
