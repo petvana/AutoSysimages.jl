@@ -1,6 +1,10 @@
 # AutoSysimages.jl
 Automate user-specific system images for Julia
 
+
+[![docs](https://img.shields.io/badge/docs-stable-blue.svg)](https://petvana.github.io/AutoSysimages.jl)
+[![Build Status](https://github.com/petvana/AutoSysimages.jl/workflows/Runtests/badge.svg)](https://github.com/petvana/AutoSysimages.jl/actions/workflows/Runtests.yml)
+
 > **Warning**
 > This package uses chained sysimage build that is not yet supported by Julia. You can try that by compiling branch [petvana:pv/fastsysimg](https://github.com/petvana/julia/tree/pv/fastsysimg) from source.
 
