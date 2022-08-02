@@ -86,6 +86,8 @@ function start()
             if REPL.TerminalMenus.request(REPL.TerminalMenus.RadioMenu(["yes", "no"])) == 1
                 build_sysimage()
             end
+        else
+            _warn_outdated()
         end
     end
 end
@@ -131,6 +133,30 @@ function remove_old_sysimages()
     end
 end
 
+function _warn_outdated()
+    versions = Dict{Base.UUID, VersionNumber}()
+    outdated = Tuple{String, VersionNumber, VersionNumber}[]
+    for d in Pkg.dependencies()
+        uuid = d.first
+        version = d.second.version
+        isnothing(version) || (versions[uuid] = version)
+    end
+    for l in Base.loaded_modules
+        uuid = l.first.uuid
+        version = pkgversion(l.second)
+        dep_version = get(versions, uuid, version)
+        if dep_version != version
+            push!(outdated, (l.first.name, version, dep_version))
+        end
+    end
+    if !isempty(outdated)
+        txt = "Some packages are outdated. Consider calling build_sysimage()."
+        for out in outdated
+            txt *= "\n - $(out[1]): $(out[2]) -> $(out[3])"
+        end
+        @warn txt
+    end
+end
 
 function _start_snooping()
     global snoop_file_io
@@ -197,7 +223,7 @@ function _update_prompt(isbuilding::Bool = false)
     function _update_prompt(repl::AbstractREPL)
         mode = repl.interface.modes[1]
         mode.prompt = "asysimg> "
-        mode.prompt_prefix = Base.text_colors[isbuilding ? :red : :blue]
+        mode.prompt_prefix = Base.text_colors[isbuilding ? :red : :magenta]
     end
     repl = nothing
     if isdefined(Base, :active_repl) && isdefined(Base.active_repl, :interface)
