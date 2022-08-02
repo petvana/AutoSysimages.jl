@@ -6,6 +6,7 @@ using LLVM_full_jll
 using Pkg
 using Pidfile
 using Dates
+using PackageCompiler
 
 export build_sysimage
 
@@ -16,10 +17,10 @@ is_asysimg = false
 snoop_file = nothing
 snoop_file_io = nothing
 
-building_task = nothing
+background_task = nothing
 
 function __init__()
-    global building_task_lock = ReentrantLock()
+    global background_task_lock = ReentrantLock()
     # Set global variables
     project_path = Pkg.project().path
     hash_name = string(hash(project_path), base = 62, pad = 11)
@@ -87,7 +88,9 @@ function start()
                 build_sysimage()
             end
         else
-            _warn_outdated()
+            if VERSION >= v"1.8"
+                _warn_outdated()
+            end
         end
     end
 end
@@ -99,9 +102,10 @@ Build new system image (in `background`) for the current project including snoop
 """
 function build_sysimage(background::Bool = true)
     if background
-        lock(building_task_lock) do
-            global building_task
-            if isnothing(building_task) || Base.istaskdone(building_task)
+        global background_task_lock
+        lock(background_task_lock) do
+            global background_task
+            if isnothing(background_task) || Base.istaskdone(background_task)
                 building_task = @task _build_system_image()
                 schedule(building_task)
             else
@@ -134,6 +138,10 @@ function remove_old_sysimages()
 end
 
 function _warn_outdated()
+    if VERSION < v"1.8"
+        @warn "Julia v1.8+ is needed to check package versions."
+        return
+    end
     versions = Dict{Base.UUID, VersionNumber}()
     outdated = Tuple{String, VersionNumber, VersionNumber}[]
     for d in Pkg.dependencies()
@@ -240,6 +248,25 @@ function _update_prompt(isbuilding::Bool = false)
 end
 
 function _build_system_image()
+    t = Dates.now()
+    sysimg_file = "$active_dir/asysimg-$t.so"
+    if VERSION >= v"1.9.0-DEV.980"
+        _build_system_image_chained(sysimg_file)
+    else
+        _build_system_image_package_compiler(sysimg_file)
+    end
+end
+
+function _build_system_image_package_compiler(sysimg_file)
+    @info "Building system image by PackageCompiler"
+    packages = [
+        #:OhMyREPL
+    ]
+    precompile_file_path = joinpath(@__DIR__, "precompile-PackageCompiler.jl")
+    create_sysimage(packages, sysimage_path = sysimg_file, script = precompile_file_path)
+end
+
+function _build_system_image_chained(sysimg_file)
     # Get path to compilation tools from LLVM_full_jll
     llvm_config = LLVM_full_jll.get_llvm_config_path()
     objcopy = replace(llvm_config, "llvm-config" => "llvm-objcopy")
@@ -247,7 +274,7 @@ function _build_system_image()
     clang = replace(llvm_config, "llvm-config" => "clang")
 
     mktempdir() do chained_dir
-        @info "Building system image in $chained_dir"    
+        @info "Building chained system image in $chained_dir"
         mkpath(active_dir)
         cd(chained_dir)
         cp("$(DEPOT_PATH[3])/../../lib/julia/sys-o.a", "sys-o.a", force=true)
@@ -282,13 +309,11 @@ include("$precompile_file_path")
         run(`$julia_cmd --sysimage-native-code=chained --sysimage=$julia_so --output-o $chained_dir/chained.o.a -e $source_txt`)
 
         cd(chained_dir)
-        t = Dates.now()
-        autosysimages_image = "$active_dir/asysimg-$t.so"
         run(`$ar x chained.o.a`) # Extract new sysimage files
-        run(`$clang -shared -o $autosysimages_image text.o data.o text-old.o`)
+        run(`$clang -shared -o $sysimg_file text.o data.o text-old.o`)
         cd("..")
-        @info "New sysimage $autosysimages_image generated."
-        @warn "Restart of Julia is necessary to load the new sysimage."
+        @info "New sysimage $sysimg_file generated."
+        @info "Restart of Julia is necessary to load the new sysimage."
     end
     remove_old_sysimages()
 end
