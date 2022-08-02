@@ -22,13 +22,13 @@ function __init__()
     global building_task_lock = ReentrantLock()
     # Set global variables
     project_path = Pkg.project().path
-    project_hash = hash(project_path)
-    asysimg_dir = joinpath(DEPOT_PATH[1], "autosysimages")
-    global active_dir = joinpath(asysimg_dir, "v$(VERSION.major).$(VERSION.minor)", "$project_hash")
+    hash_name = string(hash(project_path), base = 62, pad = 11)
+    asysimg_dir = joinpath(DEPOT_PATH[1], "asysimg")
+    global active_dir = joinpath(asysimg_dir, "$VERSION", hash_name)
     if !isdir(active_dir)
         mkpath(active_dir)
         # Print information about the project
-        open(joinpath(active_dir, "pathtoproject.txt"), "w") do io
+        open(joinpath(active_dir, "project-path.txt"), "w") do io
             print(io, "$project_path\n")
         end
     end
@@ -89,6 +89,44 @@ function start()
         end
     end
 end
+
+"""
+    build_sysimage()
+
+Build new system image for the current project including snooped precompiles.
+"""
+function build_sysimage()
+    lock(building_task_lock) do
+        global building_task
+        if isnothing(building_task) || Base.istaskdone(building_task)
+            building_task = @task _build_system_image()
+            schedule(building_task)
+        else
+            @warn "System image is already being build!"
+        end
+    end
+end
+
+"""
+    remove_old_sysimages()
+
+Remove old sysimages for the current project (`active_dir`).
+"""
+function remove_old_sysimages()
+    mkpidlock(joinpath(active_dir, "rm.lock")) do
+        files = readdir(active_dir, join = true)
+        sysimages = filter(x -> endswith(x, ".so"), files)
+        latest = latest_sysimage()
+        for si in sysimages
+            locks = filter(x -> startswith(x, si), files)
+            if length(locks) == 1 && si != latest
+                @info "AutoSysimages: Removing old sysimage $si"
+                rm(si)
+            end
+        end
+    end
+end
+
 
 function _start_snooping()
     global snoop_file_io
@@ -225,41 +263,5 @@ include("$precompile_file_path")
     remove_old_sysimages()
 end
 
-"""
-    build_sysimage()
-
-Build new system image for the current project including snooped precompiles.
-"""
-function build_sysimage()
-    lock(building_task_lock) do
-        global building_task
-        if isnothing(building_task) || Base.istaskdone(building_task)
-            building_task = @task _build_system_image()
-            schedule(building_task)
-        else
-            @warn "System image is already being build!"
-        end
-    end
-end
-
-"""
-    remove_old_sysimages()
-
-Remove old sysimages for the current project (`active_dir`).
-"""
-function remove_old_sysimages()
-    mkpidlock(joinpath(active_dir, "rm.lock")) do
-        files = readdir(active_dir, join = true)
-        sysimages = filter(x -> endswith(x, ".so"), files)
-        latest = latest_sysimage()
-        for si in sysimages
-            locks = filter(x -> startswith(x, si), files)
-            if length(locks) == 1 && si != latest
-                @info "AutoSysimages: Removing old sysimage $si"
-                rm(si)
-            end
-        end
-    end
-end
 
 end # module
