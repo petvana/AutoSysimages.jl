@@ -23,9 +23,10 @@ function __init__()
     global background_task_lock = ReentrantLock()
     # Set global variables
     project_path = Pkg.project().path
+    # Create short directory name
     hash_name = string(hash(project_path), base = 62, pad = 11)
-    asysimg_dir = joinpath(DEPOT_PATH[1], "asysimg")
-    global active_dir = joinpath(asysimg_dir, "$VERSION", hash_name)
+    global active_dir = joinpath(DEPOT_PATH[1], "asysimg", "$VERSION", hash_name)
+    # TODO - do not create dir in `__init__`
     if !isdir(active_dir)
         mkpath(active_dir)
         # Print information about the project
@@ -80,9 +81,6 @@ function start()
     if isinteractive()
         _update_prompt()
         if !is_asysimg
-            # TODO - improve the logic for autonomic rebuild
-            # @set_preferences!("autobuild" => "yes")
-            # @load_preference("autobuild")
             println("There is no sysimage for this project. Do you want to build it?")
             if REPL.TerminalMenus.request(REPL.TerminalMenus.RadioMenu(["yes", "no"])) == 1
                 build_sysimage()
@@ -135,6 +133,20 @@ function remove_old_sysimages()
             end
         end
     end
+end
+
+function set_packages()
+    # TODO - ask user (and print him/her all the options)
+    @set_preferences!("include" => ["OhMyREPL"])
+end
+
+function packages_to_include()
+    packages = Set(keys(Pkg.project().dependencies))
+    include = @load_preference("include")
+    if !isnothing(include) && !isempty(include)
+        packages = Set(include)
+    end
+    @show packages
 end
 
 function _warn_outdated()
