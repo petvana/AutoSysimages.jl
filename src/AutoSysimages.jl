@@ -248,6 +248,7 @@ function status()
     printstyled("   Settings ", color = :magenta)
     println("`$preferences_path`")
 
+    println("Packages to be included into sysimage:")
     versions = Dict{String, Tuple{Any, Any}}()
     for d in Pkg.dependencies()
         uuid = d.first
@@ -422,7 +423,7 @@ function _build_system_image_chained(sysimg_file)
 
         using_packages = ""
         for name in packages_to_include()
-            using_packages *= "    using $name\n"
+            using_packages *= " using $name;"
         end
 
         precompile_file_path = joinpath(@__DIR__, "precompile.jl")
@@ -445,7 +446,8 @@ include("$precompile_file_path")
         julia_cmd = joinpath(Sys.BINDIR::String, Base.julia_exename())
         julia_dir = dirname(julia_cmd)
         julia_so = "$julia_dir/../lib/julia/sys.so"
-        run(`$julia_cmd --project=$project_path --sysimage-native-code=chained --sysimage=$julia_so --output-o $chained_dir/chained.o.a -e $source_txt`)
+        # --project=$project_path
+        run(`$julia_cmd --sysimage-native-code=chained --sysimage=$julia_so --output-o $chained_dir/chained.o.a -e $source_txt`)
 
         cd(chained_dir)
         run(`$ar x chained.o.a`) # Extract new sysimage files
