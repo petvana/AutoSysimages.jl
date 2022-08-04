@@ -1,12 +1,12 @@
 module AutoSysimages
 
-using Preferences
 using REPL
 using LLVM_full_jll
 using Pkg
 using Pidfile
 using Dates
 using PackageCompiler
+using TOML
 
 export start, latest_sysimage, julia_args, build_sysimage, remove_old_sysimages
 export packages_to_include, set_packages, status, add, remove
@@ -23,7 +23,8 @@ background_task = nothing
 function __init__()
     global background_task_lock = ReentrantLock()
     # Set global variables
-    project_path = Pkg.project().path
+    global project_path = Base.active_project()
+    global preferences_path = joinpath(dirname(project_path), "SysimagePreferences.toml")
     # Create short directory name
     hash_name = string(hash(project_path), base = 62, pad = 11)
     global active_dir = joinpath(DEPOT_PATH[1], "asysimg", "$VERSION", hash_name)
@@ -81,6 +82,12 @@ function start()
     @info "AutoSysimages: Using directory $active_dir"
     if isinteractive()
         _update_prompt()
+        if isnothing(_load_preference("include"))
+            # There is no configuration for this specific project yet
+            # TODO - maybe check by existence of the file
+            _set_preference!("include" => [])
+            _set_preference!("exclude" => [])
+        end
         if !is_asysimg
             println("There is no sysimage for this project. Do you want to build it?")
             if REPL.TerminalMenus.request(REPL.TerminalMenus.RadioMenu(["yes", "no"])) == 1
@@ -143,7 +150,7 @@ Ask the user to choose which packages to include into the sysimage.
 """
 function set_packages()
     # TODO - ask user (and print him/her all the options)
-    @set_preferences!("include" => ["OhMyREPL"])
+    _set_preference!("include" => ["OhMyREPL"])
 end
 
 """
@@ -152,21 +159,21 @@ end
 Set package to be included into the system image.
 """
 function add(package::String)
-    include = @load_preference("include")
-    exclude = @load_preference("exclude")
+    include = _load_preference("include")
+    exclude = _load_preference("exclude")
     if !isnothing(include) && include isa Vector{String}
         # Add to the `include` list
         package ∉ include && push!(include, package)
-        @set_preferences!("include" => include)
+        _set_preference!("include" => include)
     else
         if isnothing(exclude) || !(exclude isa Vector{String})
-            @set_preferences!("include" => [package])
+            _set_preference!("include" => [package])
         end
     end
     # Remove from the `exclude` list
     if !isnothing(exclude) && exclude isa Vector{String}
         filter!(!isequal(package), exclude)
-        @set_preferences!("exclude" => exclude)
+        _set_preference!("exclude" => exclude)
     end
 end
 
@@ -176,21 +183,21 @@ end
 Set package to be excluded into the system image.
 """
 function remove(package::String)
-    include = @load_preference("include")
+    include = _load_preference("include")
     if !isnothing(include) && include isa Vector{String}
         # Remove from the `include` list
         filter!(!isequal(package), include)
-        @set_preferences!("include" => include)
+        _set_preference!("include" => include)
     else
         # Add to the `exclude` list
-        exclude = @load_preference("exclude")
+        exclude = _load_preference("exclude")
         if !isnothing(exclude) && exclude isa Vector{String}
             push!(exclude, package)
-            @set_preferences!("exclude" => exclude)
+            _set_preference!("exclude" => exclude)
         else
             exclude = [package]
         end
-        @set_preferences!("exclude" => exclude)
+        _set_preference!("exclude" => exclude)
     end
 end
 
@@ -203,8 +210,8 @@ in `LocalPreferences.toml` file next to the currently-active project.
 """
 function packages_to_include()
     packages = Set(keys(Pkg.project().dependencies))
-    include = @load_preference("include")
-    exclude = @load_preference("exclude")
+    include = _load_preference("include")
+    exclude = _load_preference("exclude")
     if !isnothing(include)
         if include isa Vector{String}
             if !isempty(include)
@@ -236,12 +243,10 @@ end
 Print list of packages to be included into sysimage determined by `packages_to_include`.
 """
 function status()
-    project_path = Pkg.project().path
     printstyled("    Project ", color = :magenta)
     println("`$project_path`")
-    project_preferences = joinpath(dirname(project_path), "LocalPreferences.toml")
     printstyled("   Settings ", color = :magenta)
-    println("`$project_preferences`")
+    println("`$preferences_path`")
 
     versions = Dict{String, Tuple{Any, Any}}()
     for d in Pkg.dependencies()
@@ -440,7 +445,7 @@ include("$precompile_file_path")
         julia_cmd = joinpath(Sys.BINDIR::String, Base.julia_exename())
         julia_dir = dirname(julia_cmd)
         julia_so = "$julia_dir/../lib/julia/sys.so"
-        run(`$julia_cmd --sysimage-native-code=chained --sysimage=$julia_so --output-o $chained_dir/chained.o.a -e $source_txt`)
+        run(`$julia_cmd --project=$project_path --sysimage-native-code=chained --sysimage=$julia_so --output-o $chained_dir/chained.o.a -e $source_txt`)
 
         cd(chained_dir)
         run(`$ar x chained.o.a`) # Extract new sysimage files
@@ -450,6 +455,33 @@ include("$precompile_file_path")
         @info "Restart of Julia is necessary to load the new sysimage."
     end
     remove_old_sysimages()
+end
+
+function _set_preference!(pair::Pair{String, T}) where T
+    if isfile(preferences_path)
+        project = Base.parsed_toml(preferences_path)
+    else
+        project = Dict{String,Any}()
+    end
+    if !haskey(project, "AutoSysimages")
+        project["AutoSysimages"] = Dict{String,Any}()
+    end
+    project["AutoSysimages"][pair.first] = pair.second
+    open(preferences_path, "w") do io
+        TOML.print(io, project; sorted=true)
+    end
+end
+
+function _load_preference(key::String)
+    !isfile(preferences_path) && return nothing
+    project = Base.parsed_toml(preferences_path)
+    if haskey(project, "AutoSysimages")
+        dict = project["AutoSysimages"]  
+        if dict isa Dict
+            return get(dict, key, nothing)
+        end
+    end
+    return nothing
 end
 
 end # module
