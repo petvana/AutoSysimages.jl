@@ -83,21 +83,10 @@ function start()
     if isinteractive()
         _update_prompt()
         if isnothing(_load_preference("include"))
-            # There is no configuration for this specific project yet
-            # TODO - maybe check by existence of the file
             _set_preference!("include" => [])
             _set_preference!("exclude" => [])
         end
-        if !is_asysimg
-            println("There is no sysimage for this project. Do you want to build it?")
-            if REPL.TerminalMenus.request(REPL.TerminalMenus.RadioMenu(["yes", "no"])) == 1
-                build_sysimage()
-            end
-        else
-            if VERSION >= v"1.8"
-                _warn_outdated()
-            end
-        end
+        is_asysimg && VERSION >= v"1.8" && _warn_outdated()
     end
 end
 
@@ -243,9 +232,17 @@ end
 Print list of packages to be included into sysimage determined by `packages_to_include`.
 """
 function status()
-    printstyled("    Project ", color = :magenta)
+    if Base.have_color
+        printstyled("    Project ", color = :magenta)
+    else
+        print("    Project ")
+    end
     println("`$project_path`")
-    printstyled("   Settings ", color = :magenta)
+    if Base.have_color
+        printstyled("   Settings ", color = :magenta)
+    else
+        print("   Settings ")
+    end
     println("`$preferences_path`")
 
     println("Packages to be included into sysimage:")
@@ -260,7 +257,11 @@ function status()
     for name in packages
         if !isnothing(get(versions, name, nothing))
             uuid, version = versions[name]
-            printstyled("  [", string(uuid)[1:8], "] "; color = :light_black)
+            if Base.have_color
+                printstyled("  [", string(uuid)[1:8], "] "; color = :light_black)
+            else
+                print("  [", string(uuid)[1:8], "] ")
+            end
             println("$name v$version")
         else
             @warn "Package $name is not in the project and cannot be included in sysimg."
@@ -322,6 +323,12 @@ function _stop_snooping()
     snoop_file_io = nothing
     _save_statements()
     isfile(snoop_file) && rm(snoop_file)
+    if !is_asysimg
+        println("There is no sysimage for this project. Do you want to build one?")
+        if REPL.TerminalMenus.request(REPL.TerminalMenus.RadioMenu(["yes", "no"])) == 1
+            build_sysimage()
+        end
+    end
 end
 
 function _flush_statements()
@@ -362,7 +369,9 @@ function _update_prompt(isbuilding::Bool = false)
     function _update_prompt(repl::AbstractREPL)
         mode = repl.interface.modes[1]
         mode.prompt = "asysimg> "
-        mode.prompt_prefix = Base.text_colors[isbuilding ? :red : :magenta]
+        if Base.have_color
+            mode.prompt_prefix = Base.text_colors[isbuilding ? :red : :magenta]
+        end
     end
     repl = nothing
     if isdefined(Base, :active_repl) && isdefined(Base.active_repl, :interface)
@@ -446,8 +455,7 @@ include("$precompile_file_path")
         julia_cmd = joinpath(Sys.BINDIR::String, Base.julia_exename())
         julia_dir = dirname(julia_cmd)
         julia_so = "$julia_dir/../lib/julia/sys.so"
-        # --project=$project_path
-        run(`$julia_cmd --sysimage-native-code=chained --sysimage=$julia_so --output-o $chained_dir/chained.o.a -e $source_txt`)
+        run(`$julia_cmd --project=$project_path --sysimage-native-code=chained --sysimage=$julia_so --output-o $chained_dir/chained.o.a -e $source_txt`)
 
         cd(chained_dir)
         run(`$ar x chained.o.a`) # Extract new sysimage files
