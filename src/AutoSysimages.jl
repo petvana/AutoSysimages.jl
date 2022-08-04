@@ -146,6 +146,50 @@ function set_packages()
 end
 
 """
+    add(package::String)
+
+Set package to be included into the system image.
+"""
+function add(package::String)
+    include = @load_preference("include")
+    if !isnothing(include) && include isa Vector{String}
+        # Add to the `include` list
+        package ∉ include && push!(include, package)
+        @set_preferences!("include" => include)
+    end
+    # Remove from the `exclude` list
+    exclude = @load_preference("exclude")
+    if !isnothing(exclude) && exclude isa Vector{String}
+        filter!(!isequal(package), exclude)
+        @set_preferences!("exclude" => exclude)
+    end
+end
+
+"""
+    rm(package::String)
+
+Set package to be excluded into the system image.
+"""
+function rm(package::String)
+    include = @load_preference("include")
+    if !isnothing(include) && include isa Vector{String}
+        # Remove from the `include` list
+        filter!(!isequal(package), include)
+        @set_preferences!("include" => include)
+    else
+        # Add to the `exclude` list
+        exclude = @load_preference("exclude")
+        if !isnothing(exclude) && exclude isa Vector{String}
+            push!(exclude, package)
+            @set_preferences!("exclude" => exclude)
+        else
+            exclude = [package]
+        end
+        @set_preferences!("exclude" => exclude)
+    end
+end
+
+"""
     packages_to_include()::Set{String}
 
 Get list of packages to be included into sysimage.
@@ -162,7 +206,9 @@ function packages_to_include()
                 packages = Set(include)
             end
         else
-            @warn "Incorrect format of \"include\" in LocalPreferences.toml file."
+            if !(include isa Vector) || !isempty(include)
+                @warn "Incorrect format of \"include\" in LocalPreferences.toml file."
+            end
         end
     end
     if !isnothing(exclude)
@@ -171,7 +217,9 @@ function packages_to_include()
                 delete!(packages, e)
             end
         else
-            @warn "Incorrect format of \"exclude\" in LocalPreferences.toml file."
+            if !(exclude isa Vector) || !isempty(exclude)
+                @warn "Incorrect format of \"exclude\" in LocalPreferences.toml file."
+            end
         end
     end
     return packages
@@ -330,10 +378,8 @@ function _build_system_image()
 end
 
 function _build_system_image_package_compiler(sysimg_file)
-    @info "Building system image by PackageCompiler"
-    packages = [
-        #:OhMyREPL
-    ]
+    @info "Building system image by PackageCompiler."
+    packages = Symbol.(packages_to_include())
     precompile_file_path = joinpath(@__DIR__, "precompile-PackageCompiler.jl")
     create_sysimage(packages, sysimage_path = sysimg_file, script = precompile_file_path)
 end
@@ -389,6 +435,5 @@ include("$precompile_file_path")
     end
     remove_old_sysimages()
 end
-
 
 end # module
