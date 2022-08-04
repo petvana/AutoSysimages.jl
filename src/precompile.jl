@@ -20,11 +20,11 @@ let
                     #printstyled("\r", statement, "\n", color = :green)
                     status_true += 1
                 else
-                    printstyled("\r", statement, "\n", color = :yellow)
+                    #printstyled("\r", statement, "\n", color = :yellow)
                     status_false += 1
                 end
             catch
-                printstyled("\r", statement, "\n", color = :red)
+                #printstyled("\r", statement, "\n", color = :red)
                 status_fail += 1
                 # See julia issue #28808
                 @debug "failed to execute \$statement"

@@ -8,7 +8,8 @@ using Pidfile
 using Dates
 using PackageCompiler
 
-export build_sysimage
+export start, latest_sysimage, julia_args, build_sysimage, remove_old_sysimages
+export packages_to_include, set_packages, status, add, remove
 
 active_dir = ""
 precompiles_file = ""
@@ -170,11 +171,11 @@ function add(package::String)
 end
 
 """
-    rm(package::String)
+    remove(package::String)
 
 Set package to be excluded into the system image.
 """
-function rm(package::String)
+function remove(package::String)
     include = @load_preference("include")
     if !isnothing(include) && include isa Vector{String}
         # Remove from the `include` list
@@ -414,13 +415,17 @@ function _build_system_image_chained(sysimg_file)
         run(`$objcopy --remove-section .data.jl.sysimg_link text-old.o`) # rm the link between the native code and 
         cd("..")
 
+        using_packages = ""
+        for name in packages_to_include()
+            using_packages *= "    using $name\n"
+        end
+
         precompile_file_path = joinpath(@__DIR__, "precompile.jl")
         source_txt = """
 Base.__init_build();
 
 module PrecompileStagingArea;
-    # using AutoSysimages
-    # TODO - load libraries
+$using_packages
 end;
     """
         source_txt *= """
@@ -434,7 +439,6 @@ include("$precompile_file_path")
         #julia_cmd = get_julia_path()
         julia_cmd = joinpath(Sys.BINDIR::String, Base.julia_exename())
         julia_dir = dirname(julia_cmd)
-        @show julia_cmd
         julia_so = "$julia_dir/../lib/julia/sys.so"
         run(`$julia_cmd --sysimage-native-code=chained --sysimage=$julia_so --output-o $chained_dir/chained.o.a -e $source_txt`)
 

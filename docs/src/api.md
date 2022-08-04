@@ -30,4 +30,6 @@ remove_old_sysimages
 packages_to_include
 set_packages
 status
+add
+remove
 ```
