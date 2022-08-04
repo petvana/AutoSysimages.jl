@@ -135,18 +135,78 @@ function remove_old_sysimages()
     end
 end
 
+"""
+    set_packages()
+
+Ask the user to choose which packages to include into the sysimage.
+"""
 function set_packages()
     # TODO - ask user (and print him/her all the options)
     @set_preferences!("include" => ["OhMyREPL"])
 end
 
+"""
+    packages_to_include()::Set{String}
+
+Get list of packages to be included into sysimage.
+It is determined based on "include" or "exclude" options save by `Preferences.jl` 
+in `LocalPreferences.toml` file next to the currently-active project.
+"""
 function packages_to_include()
     packages = Set(keys(Pkg.project().dependencies))
     include = @load_preference("include")
-    if !isnothing(include) && !isempty(include)
-        packages = Set(include)
+    exclude = @load_preference("exclude")
+    if !isnothing(include)
+        if include isa Vector{String}
+            if !isempty(include)
+                packages = Set(include)
+            end
+        else
+            @warn "Incorrect format of \"include\" in LocalPreferences.toml file."
+        end
     end
-    @show packages
+    if !isnothing(exclude)
+        if exclude isa Vector{String}
+            for e in exclude
+                delete!(packages, e)
+            end
+        else
+            @warn "Incorrect format of \"exclude\" in LocalPreferences.toml file."
+        end
+    end
+    return packages
+end
+
+"""
+    status()
+
+Print list of packages to be included into sysimage determined by `packages_to_include`.
+"""
+function status()
+    project_path = Pkg.project().path
+    printstyled("    Project ", color = :magenta)
+    println("`$project_path`")
+    project_preferences = joinpath(dirname(project_path), "LocalPreferences.toml")
+    printstyled("   Settings ", color = :magenta)
+    println("`$project_preferences`")
+
+    versions = Dict{String, Tuple{Any, Any}}()
+    for d in Pkg.dependencies()
+        uuid = d.first
+        version = d.second.version
+        name = d.second.name
+        versions[name] = (uuid, version)
+    end
+    packages = packages_to_include()
+    for name in packages
+        if !isnothing(get(versions, name, nothing))
+            uuid, version = versions[name]
+            printstyled("  [", string(uuid)[1:8], "] "; color = :light_black)
+            println("$name v$version")
+        else
+            @warn "Package $name is not in the project and cannot be included in sysimg."
+        end
+    end
 end
 
 function _warn_outdated()
@@ -262,7 +322,7 @@ end
 function _build_system_image()
     t = Dates.now()
     sysimg_file = "$active_dir/asysimg-$t.so"
-    if VERSION >= v"1.9.0-DEV.980"
+    if VERSION == v"1.9.0-DEV.980"
         _build_system_image_chained(sysimg_file)
     else
         _build_system_image_package_compiler(sysimg_file)
