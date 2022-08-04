@@ -94,11 +94,11 @@ function start()
 end
 
 """
-    build_sysimage(background::Bool = true)
+    build_sysimage(background::Bool = false)
 
 Build new system image (in `background`) for the current project including snooped precompiles.
 """
-function build_sysimage(background::Bool = true)
+function build_sysimage(background::Bool = false)
     if background
         global background_task_lock
         lock(background_task_lock) do
@@ -152,13 +152,17 @@ Set package to be included into the system image.
 """
 function add(package::String)
     include = @load_preference("include")
+    exclude = @load_preference("exclude")
     if !isnothing(include) && include isa Vector{String}
         # Add to the `include` list
         package ∉ include && push!(include, package)
         @set_preferences!("include" => include)
+    else
+        if isnothing(exclude) || !(exclude isa Vector{String})
+            @set_preferences!("include" => [package])
+        end
     end
     # Remove from the `exclude` list
-    exclude = @load_preference("exclude")
     if !isnothing(exclude) && exclude isa Vector{String}
         filter!(!isequal(package), exclude)
         @set_preferences!("exclude" => exclude)
@@ -370,7 +374,15 @@ end
 function _build_system_image()
     t = Dates.now()
     sysimg_file = "$active_dir/asysimg-$t.so"
-    if VERSION == v"1.9.0-DEV.980"
+    chained = false
+    try 
+        # Enable chained building of system image
+        # See https://github.com/JuliaLang/julia/pull/46045
+        @ccall jl_precompiles_for_sysimage(1::Cuchar)::Cvoid;
+        chained = true
+    catch 
+    end
+    if chained
         _build_system_image_chained(sysimg_file)
     else
         _build_system_image_package_compiler(sysimg_file)
