@@ -24,6 +24,11 @@ function __init__()
     global background_task_lock = ReentrantLock()
     # Set global variables
     global project_path = Base.active_project()
+    if !isfile(project_path)
+        @error "Project file do not exist: $project_path"
+        project_path = nothing
+        return
+    end
     global preferences_path = joinpath(dirname(project_path), "SysimagePreferences.toml")
     # Create short directory name
     hash_name = string(hash(project_path), base = 62, pad = 11)
@@ -53,6 +58,7 @@ Return the path to the latest system image produced by AutoSysimages,
 or `nothing` if no such image exits.
 """
 function latest_sysimage()
+    !isdir(active_dir) && return nothing
     files = readdir(active_dir, join = true)
     sysimages = filter(x -> endswith(x, ".so"), files) |> sort
     return isempty(sysimages) ? nothing : sysimages[end]
@@ -66,6 +72,7 @@ Get Julia arguments for running AutoSysimages:
 - `"-L [@__DIR__]/start.jl"` - starts AutoSysimages automatically.
 """
 function julia_args()
+    isnothing(project_path) && return ""
     image = latest_sysimage()
     startfile = joinpath(@__DIR__, "start.jl")
     return (isnothing(image) ? "" : " -J $image") * " -L $startfile" 
@@ -78,6 +85,9 @@ Starts AutoSysimages package. It's usually called by `start.jl` file;
 but it can be called manually as well.
 """
 function start()
+    if isnothing(project_path)
+        return
+    end
     _start_snooping()
     @info "AutoSysimages: Using directory $active_dir"
     if isinteractive()
@@ -285,7 +295,7 @@ function _warn_outdated()
         uuid = l.first.uuid
         version = pkgversion(l.second)
         dep_version = get(versions, uuid, version)
-        if dep_version != version
+        if dep_version != version && !isnothing(version)
             push!(outdated, (l.first.name, version, dep_version))
         end
     end
@@ -339,17 +349,13 @@ function _save_statements()
     _flush_statements()
     lines = readlines(snoop_file)
     act_precompiles = String[]
-    open("$(snoop_file).txt", "w") do file
-        for line in lines
-            sp = split(line, "\t")
-            if length(sp) == 2
-                push!(act_precompiles, sp[2][2:end-1])
-            end          
-        end
+    for line in lines
+        sp = split(line, "\t")
+        length(sp) == 2 && push!(act_precompiles, sp[2][2:end-1])
     end
 
     global precompiles_file
-    @info("Copy snooped function into $(precompiles_file)")
+    @info("Copy snooped statements to: $(precompiles_file)")
     @time mkpidlock("$precompiles_file.lock") do
         oldprec = isfile(precompiles_file) ? readlines(precompiles_file) : String[]
         old = Set{String}(oldprec)
@@ -477,8 +483,14 @@ function _set_preference!(pair::Pair{String, T}) where T
         project["AutoSysimages"] = Dict{String,Any}()
     end
     project["AutoSysimages"][pair.first] = pair.second
+    # Sort such that `include` and `exclude` are first
+    function by_fce(x)
+        x == "include" && return "1"
+        x == "exclude" && return "2"
+        return "3" * x
+    end
     open(preferences_path, "w") do io
-        TOML.print(io, project; sorted=true)
+        TOML.print(io, project; sorted=true, by=by_fce)
     end
 end
 
