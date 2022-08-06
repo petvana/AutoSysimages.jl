@@ -356,7 +356,7 @@ function _save_statements()
 
     global precompiles_file
     @info("Copy snooped statements to: $(precompiles_file)")
-    @time mkpidlock("$precompiles_file.lock") do
+    mkpidlock("$precompiles_file.lock") do
         oldprec = isfile(precompiles_file) ? readlines(precompiles_file) : String[]
         old = Set{String}(oldprec)
         open(precompiles_file, "a") do file
