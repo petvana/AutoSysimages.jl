@@ -106,6 +106,7 @@ end
 Build new system image (in `background`) for the current project including snooped precompiles.
 """
 function build_sysimage(background::Bool = false)
+    is_asysimg = true
     if background
         global background_task_lock
         lock(background_task_lock) do
