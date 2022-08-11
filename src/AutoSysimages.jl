@@ -42,7 +42,7 @@ function __init__()
         end
     end
     global precompiles_file =  joinpath(active_dir, "snoop-file.jl")
-    image = unsafe_string(Base.JLOptions().image_file)
+    global image = unsafe_string(Base.JLOptions().image_file)
     # Detect if loaded `image` was produced by AutoSysimages.jl
     global is_asysimg = startswith(basename(image), "asysimg-")
     if is_asysimg
@@ -89,7 +89,16 @@ function start()
         return
     end
     _start_snooping()
-    @info "AutoSysimages: Using directory $active_dir"
+    txt = "The package AutoSysimages.jl started!"
+    if is_asysimg
+        txt *= "\n Loaded sysimage:    $image"
+    else
+        txt *= "\n Loaded sysimage:    ---"
+    end
+    txt *= "\n Active directory:   $active_dir"
+    txt *= "\n Global snoop file:  $precompiles_file"
+    txt *= "\n Tmp. snoop file:    $snoop_file"
+    @info txt
     if isinteractive()
         _update_prompt()
         if isnothing(_load_preference("include"))
@@ -314,7 +323,6 @@ function _start_snooping()
     if snoop_file_io === nothing
         global snoop_file = "$(tempname())-snoop.jl"
         mkpath(dirname(snoop_file))
-        @info("Snooping -> $(snoop_file)")
         global snoop_file_io = open(snoop_file, "w")
         ccall(:jl_dump_compiles, Cvoid, (Ptr{Cvoid},), snoop_file_io.handle)
         atexit(_stop_snooping)
@@ -410,6 +418,7 @@ function _build_system_image()
     else
         _build_system_image_package_compiler(sysimg_file)
     end
+    @info "Compilation time: $(time() - t) s"
 end
 
 function _build_system_image_package_compiler(sysimg_file)
