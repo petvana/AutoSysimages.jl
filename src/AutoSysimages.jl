@@ -11,6 +11,9 @@ using TOML
 export start, latest_sysimage, julia_args, build_sysimage, remove_old_sysimages
 export packages_to_include, set_packages, status, add, remove
 
+include("build-PackageCompiler.jl")
+include("build-ChainedSysimages.jl")
+
 active_dir = ""
 precompiles_file = ""
 is_asysimg = false
@@ -93,7 +96,7 @@ function start()
     if is_asysimg
         txt *= "\n Loaded sysimage:    $image"
     else
-        txt *= "\n Loaded sysimage:    ---"
+        txt *= "\n Loaded sysimage:    Default (You may run AutoSysimages.build_sysimage())"
     end
     txt *= "\n Active directory:   $active_dir"
     txt *= "\n Global snoop file:  $precompiles_file"
@@ -343,8 +346,8 @@ function _stop_snooping()
     _save_statements()
     isfile(snoop_file) && rm(snoop_file)
     if !is_asysimg
-        println("There is no sysimage for this project. Do you want to build one?")
-        if REPL.TerminalMenus.request(REPL.TerminalMenus.RadioMenu(["yes", "no"])) == 1
+        @warn "There is no sysimage for this project. Do you want to build one?"
+        if REPL.TerminalMenus.request(REPL.TerminalMenus.RadioMenu(["Yes", "No"])) == 1
             build_sysimage()
         end
     end
@@ -404,6 +407,7 @@ end
 
 function _build_system_image()
     t = Dates.now()
+    t_start = time()
     sysimg_file = "$active_dir/asysimg-$t.so"
     chained = false
     try 
@@ -418,69 +422,7 @@ function _build_system_image()
     else
         _build_system_image_package_compiler(sysimg_file)
     end
-    @info "Compilation time: $(time() - t) s"
-end
-
-function _build_system_image_package_compiler(sysimg_file)
-    @info "Building system image by PackageCompiler."
-    packages = Symbol.(packages_to_include())
-    precompile_file_path = joinpath(@__DIR__, "precompile-PackageCompiler.jl")
-    create_sysimage(packages, sysimage_path = sysimg_file, script = precompile_file_path)
-end
-
-function _build_system_image_chained(sysimg_file)
-    # Get path to compilation tools from LLVM_full_jll
-    llvm_config = LLVM_full_jll.get_llvm_config_path()
-    objcopy = replace(llvm_config, "llvm-config" => "llvm-objcopy")
-    ar = replace(llvm_config, "llvm-config" => "llvm-ar")
-    clang = replace(llvm_config, "llvm-config" => "clang")
-
-    mktempdir() do chained_dir
-        @info "Building chained system image in $chained_dir"
-        mkpath(active_dir)
-        cd(chained_dir)
-        cp("$(DEPOT_PATH[3])/../../lib/julia/sys-o.a", "sys-o.a", force=true)
-        run(`$ar x sys-o.a`)
-        run(`rm data.o`)
-        run(`mv text.o text-old.o`)
-        run(`$objcopy --remove-section .data.jl.sysimg_link text-old.o`) # rm the link between the native code and 
-        cd("..")
-
-        using_packages = ""
-        for name in packages_to_include()
-            using_packages *= " using $name;"
-        end
-
-        precompile_file_path = joinpath(@__DIR__, "precompile.jl")
-        source_txt = """
-Base.__init_build();
-
-module PrecompileStagingArea;
-$using_packages
-end;
-    """
-        source_txt *= """
-@ccall jl_precompiles_for_sysimage(1::Cuchar)::Cvoid;
-include("$precompile_file_path")
-    """
-
-        if isfile(precompiles_file)
-            cp(precompiles_file, "statements.txt", force=true)
-        end
-        #julia_cmd = get_julia_path()
-        julia_cmd = joinpath(Sys.BINDIR::String, Base.julia_exename())
-        julia_dir = dirname(julia_cmd)
-        julia_so = "$julia_dir/../lib/julia/sys.so"
-        run(`$julia_cmd --project=$project_path --sysimage-native-code=chained --sysimage=$julia_so --output-o $chained_dir/chained.o.a -e $source_txt`)
-
-        cd(chained_dir)
-        run(`$ar x chained.o.a`) # Extract new sysimage files
-        run(`$clang -shared -o $sysimg_file text.o data.o text-old.o`)
-        cd("..")
-        @info "New sysimage $sysimg_file generated."
-        @info "Restart of Julia is necessary to load the new sysimage."
-    end
-    remove_old_sysimages()
+    @info "Compilation time: $(time() - t_start) s"
 end
 
 function _set_preference!(pair::Pair{String, T}) where T
