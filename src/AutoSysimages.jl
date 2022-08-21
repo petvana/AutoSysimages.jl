@@ -137,7 +137,7 @@ end
 Build new system image (in `background`) for the current project including snooped precompiles.
 """
 function build_sysimage(background::Bool = false)
-    is_asysimg = true # Do not ask user to build sysimage again
+    global is_asysimg = true # Do not ask user to build sysimage again
     if background
         global background_task_lock
         lock(background_task_lock) do
@@ -383,22 +383,13 @@ function _flush_statements()
     !isnothing(snoop_file_io) && flush(snoop_file_io)
 end
 
-function _save_statements()
-    _flush_statements()
-    lines = readlines(snoop_file)
-    act_precompiles = String[]
-    for line in lines
-        sp = split(line, "\t")
-        length(sp) == 2 && push!(act_precompiles, sp[2][2:end-1])
-    end
-
+function _append_statements(precompiles::Vector{String})
     global precompiles_file
-    @info("AutoSysimages: Copy snooped statements to: $(precompiles_file)")
     mkpidlock("$precompiles_file.lock") do
         oldprec = isfile(precompiles_file) ? readlines(precompiles_file) : String[]
         old = Set{String}(oldprec)
         open(precompiles_file, "a") do file
-            for precompile in act_precompiles
+            for precompile in precompiles
                 if precompile ∉ old
                     push!(old, precompile)
                     write(file, "$precompile\n")   
@@ -406,6 +397,18 @@ function _save_statements()
             end
         end
     end
+end
+
+function _save_statements()
+    _flush_statements()
+    lines = readlines(snoop_file)
+    precompiles = String[]
+    for line in lines
+        sp = split(line, "\t")
+        length(sp) == 2 && push!(precompiles, sp[2][2:end-1])
+    end
+    @info("AutoSysimages: Copy snooped statements to: $(precompiles_file)")
+    _append_statements(precompiles)
 end
 
 # TODO - make it compatible with OhMyREPL
@@ -432,9 +435,22 @@ function _update_prompt(isbuilding::Bool = false)
 end
 
 function _build_system_image()
-    t = Dates.now()
     t_start = time()
-    sysimg_file = joinpath(string(active_dir()), "asysimg-$t.so")
+    sysimg_file = joinpath(string(active_dir()), "asysimg-$(Dates.now()).so")
+
+    # First collect precompile statements for a dummy run (e.g., with -e "")
+    @info "AutoSysimages: Collecting precompile statements for empty run (-e \"\")"
+    empty_precompiles = tempname()
+    julia_cmd = joinpath(Sys.BINDIR::String, Base.julia_exename())
+    readlines(pipeline(`$julia_cmd -J $loaded_image -e "" --trace-compile stderr`, stderr = empty_precompiles))
+    precompiles = String[]
+    for line in readlines(empty_precompiles)
+        if startswith(line, "precompile(") && endswith(line, ")")
+            push!(precompiles, line[12:end-1])
+        end
+    end
+    _append_statements(precompiles)
+
     chained = false
     try 
         # Enable chained building of system image
@@ -449,6 +465,7 @@ function _build_system_image()
         _build_system_image_package_compiler(sysimg_file)
     end
     @info "AutoSysimages: Builded in $(time() - t_start) s"
+    remove_old_sysimages()
 end
 
 function _set_preference!(pair::Pair{String, T}) where T

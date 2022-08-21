@@ -17,51 +17,62 @@ function _build_system_image_chained(sysimg_file)
         using_packages *= " using $name;"
     end
 
+    chained_dir = mktempdir(;cleanup = false)
+
     # First make sure all the packages are precompiled
     # TODO - enable precompilation while building chained sysimage
     @info "AutoSysimages: Making sure that all packages are precompiled"
-    source_txt = """  
-    module PrecompileStagingArea;
-        $using_packages
-    end;
-    """
-    run(`$julia_cmd --project=$projpath --sysimage=$julia_so -e $source_txt`)
+    source_file1 = tempname(chained_dir)
+    open(source_file1, "w") do file
+        write(file,
+"""
+module PrecompileStagingArea;
+    $using_packages
+end;
+"""
+        )
+    end
+    run(`$julia_cmd --project=$projpath --sysimage=$julia_so $source_file1`)
 
-    mktempdir() do chained_dir
+    ok = false
+    cd(chained_dir) do
         @info "AutoSysimages: Building chained system image in $chained_dir"
         active_dir()
-        cd(chained_dir)
         cp("$(DEPOT_PATH[3])/../../lib/julia/sys-o.a", "sys-o.a", force=true)
         run(`$ar x sys-o.a`)
-        run(`rm data.o`)
-        run(`mv text.o text-old.o`)
+        rm("data.o")
+        mv("text.o", "text-old.o")
         run(`$objcopy --remove-section .data.jl.sysimg_link text-old.o`) # rm the link between the native code and 
-        cd("..")
 
-        precompile_file_path = joinpath(@__DIR__, "precompile.jl")
-        source_txt = """
+        source_txt2 =
+"""
 Base.__init_build();
 
 module PrecompileStagingArea;
 $using_packages
 end;
-    """
-        source_txt *= """
+
 @ccall jl_precompiles_for_sysimage(1::Cuchar)::Cvoid;
-include("$precompile_file_path")
-    """
+include("$(joinpath(@__DIR__, "precompile.jl"))")
+"""
 
-        if isfile(precompiles_file)
-            cp(precompiles_file, "statements.txt", force=true)
-        end       
-        run(`$julia_cmd --project=$projpath --sysimage-native-code=chained --sysimage=$julia_so --output-o $chained_dir/chained.o.a -e $source_txt`)
+        source_file2 = tempname(chained_dir)
+        open(source_file2, "w") do file
+            write(file, source_txt2)
+        end
 
-        cd(chained_dir)
+        isfile(precompiles_file) && cp(precompiles_file, "statements.txt", force=true)
+        run(`$julia_cmd --project=$projpath --sysimage-native-code=chained --sysimage=$julia_so --output-o $chained_dir/chained.o.a $source_file2`)
+
         run(`$ar x chained.o.a`) # Extract new sysimage files
-        run(`$clang -shared -o $sysimg_file text.o data.o text-old.o`)
-        cd("..")
+        ok = success(`$clang -shared -o $sysimg_file text.o data.o text-old.o`)
         @info "AutoSysimages: New sysimage $sysimg_file generated."
         @info "AutoSysimages: Restart of Julia is necessary to load the new sysimage."
+    end
+    if ok
+        rm(chained_dir, recursive=true)
+    else
+        @warn "The compilation was not successful. All the files are stored in $chained_dir"
     end
     remove_old_sysimages()
 end
