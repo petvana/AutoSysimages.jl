@@ -14,7 +14,7 @@ function _build_system_image_chained(sysimg_file)
     # Prepare packages to be included
     using_packages = ""
     for name in packages_to_include()
-        using_packages *= " using $name;"
+        using_packages *= " import $name;"
     end
 
     chained_dir = mktempdir(;cleanup = false)

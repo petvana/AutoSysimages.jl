@@ -243,9 +243,13 @@ Notice `dev` packages are excluded unless they are in `include` list.
 """
 function packages_to_include()
     packages = Set{String}()
+    include_AutoSysimages = false
     for (uuid, info) in Pkg.dependencies()
         if info.is_direct_dep && !info.is_tracking_path
             push!(packages, info.name)
+        end
+        if info.name == "AutoSysimages" && !info.is_tracking_path
+            include_AutoSysimages = true
         end
     end
     include = _load_preference("include")
@@ -261,6 +265,7 @@ function packages_to_include()
             end
         end
     end
+    include_AutoSysimages && push!(packages, "AutoSysimages")
     if !isnothing(exclude)
         if exclude isa Vector{String}
             for e in exclude
