@@ -32,7 +32,6 @@ function __init__()
         @error "Project file do not exist: $projpath"
         return
     end
-    global preferences_path = joinpath(dirname(projpath), "SysimagePreferences.toml")
     # Create short directory name
     adir = active_dir(projpath)
     project_path_file = joinpath(adir, "project-path.txt")
@@ -286,7 +285,7 @@ function status()
     else
         print("   Settings ")
     end
-    println("`$preferences_path`")
+    println("`$(preferences_path())`")
 
     println("Packages to be included into sysimage:")
     versions = Dict{String, Tuple{Any, Any}}()
@@ -446,8 +445,9 @@ function _build_system_image()
 end
 
 function _set_preference!(pair::Pair{String, T}) where T
-    if isfile(preferences_path)
-        project = Base.parsed_toml(preferences_path)
+    prefpath = preferences_path()
+    if isfile(prefpath)
+        project = Base.parsed_toml(prefpath)
     else
         project = Dict{String,Any}()
     end
@@ -461,14 +461,15 @@ function _set_preference!(pair::Pair{String, T}) where T
         x == "exclude" && return "2"
         return "3" * x
     end
-    open(preferences_path, "w") do io
+    open(prefpath, "w") do io
         TOML.print(io, project; sorted=true, by=by_fce)
     end
 end
 
 function _load_preference(key::String)
-    !isfile(preferences_path) && return nothing
-    project = Base.parsed_toml(preferences_path)
+    prefpath = preferences_path()
+    !isfile(prefpath) && return nothing
+    project = Base.parsed_toml(prefpath)
     if haskey(project, "AutoSysimages")
         dict = project["AutoSysimages"]  
         if dict isa Dict
