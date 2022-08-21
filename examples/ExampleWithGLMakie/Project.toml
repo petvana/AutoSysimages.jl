@@ -1,0 +1,7 @@
+name = "ExampleWithGLMakie"
+uuid = "8fdc17ff-0af9-469a-b0d6-f26cac9dd60b"
+authors = ["Petr Vana <petvana@centrum.cz>"]
+version = "0.1.0"
+
+[deps]
+GLMakie = "e9467ef8-e4e7-5192-8a1a-b1aee30e663a"
