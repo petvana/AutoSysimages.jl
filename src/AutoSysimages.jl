@@ -41,12 +41,12 @@ function __init__()
         end
     end
     global precompiles_file =  joinpath(adir, "snoop-file.jl")
-    global image = unsafe_string(Base.JLOptions().image_file)
+    global loaded_image = unsafe_string(Base.JLOptions().image_file)
     # Detect if loaded `image` was produced by AutoSysimages.jl
-    global is_asysimg = startswith(basename(image), "asysimg-")
+    global is_asysimg = startswith(basename(loaded_image), "asysimg-")
     if is_asysimg
         # Prevent the sysimage to be removed during Julia execution
-        global _pidlock = mkpidlock("$image.$(getpid())")
+        global _pidlock = mkpidlock("$loaded_image.$(getpid())")
     end
 end
 
@@ -112,7 +112,7 @@ function start()
     _start_snooping()
     txt = "The package AutoSysimages.jl started!"
     if is_asysimg
-        txt *= "\n Loaded sysimage:    $image"
+        txt *= "\n Loaded sysimage:    $loaded_image"
     else
         txt *= "\n Loaded sysimage:    Default (You may run AutoSysimages.build_sysimage())"
     end
