@@ -5,11 +5,11 @@ function _build_system_image_chained(sysimg_file)
     ar = replace(llvm_config, "llvm-config" => "llvm-ar")
     clang = replace(llvm_config, "llvm-config" => "clang")
 
-    # Currently used julia
+    # Currently used julia executable with sysimage
     julia_cmd = joinpath(Sys.BINDIR::String, Base.julia_exename())
     julia_dir = dirname(julia_cmd)
     julia_so = "$julia_dir/../lib/julia/sys.so"
-    project_path = active_project()
+    projpath = active_project()
 
     # Prepare packages to be included
     using_packages = ""
@@ -25,7 +25,7 @@ function _build_system_image_chained(sysimg_file)
         $using_packages
     end;
     """
-    run(`$julia_cmd --project=$project_path --sysimage=$julia_so -e $source_txt`)
+    run(`$julia_cmd --project=$projpath --sysimage=$julia_so -e $source_txt`)
 
     mktempdir() do chained_dir
         @info "AutoSysimages: Building chained system image in $chained_dir"
@@ -54,7 +54,7 @@ include("$precompile_file_path")
         if isfile(precompiles_file)
             cp(precompiles_file, "statements.txt", force=true)
         end       
-        run(`$julia_cmd --project=$project_path --sysimage-native-code=chained --sysimage=$julia_so --output-o $chained_dir/chained.o.a -e $source_txt`)
+        run(`$julia_cmd --project=$projpath --sysimage-native-code=chained --sysimage=$julia_so --output-o $chained_dir/chained.o.a -e $source_txt`)
 
         cd(chained_dir)
         run(`$ar x chained.o.a`) # Extract new sysimage files

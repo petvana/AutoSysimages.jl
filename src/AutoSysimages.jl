@@ -57,12 +57,20 @@ end
 Get diterctory where the sysimage and precompiles are stored for the current project.
 The directory is created if it doesn't exist yet.
 """
-function active_dir(project_path = active_project())
-    hash_name = string(Base._crc32c(project_path), base = 62, pad = 6)
+function active_dir(projpath = active_project())
+    hash_name = string(Base._crc32c(projpath), base = 62, pad = 6)
     adir = joinpath(DEPOT_PATH[1], "asysimg", "$VERSION", hash_name)
     !isdir(adir) && mkpath(adir)
     return adir
 end
+
+"""
+    preferences_path()
+
+Get the file with preferences for the active project (`active_dir()`).
+Preferences are stored in `SysimagePreferences.toml` next to the current `Project.toml` file.
+"""
+preferences_path(projpath = active_project()) = joinpath(dirname(projpath), "SysimagePreferences.toml")
 
 """
     latest_sysimage()
@@ -70,8 +78,7 @@ end
 Return the path to the latest system image produced by AutoSysimages,
 or `nothing` if no such image exits.
 """
-function latest_sysimage()
-    adir = active_dir()
+function latest_sysimage(adir = active_dir())
     !isdir(adir) && return nothing
     files = readdir(adir, join = true)
     sysimages = filter(x -> endswith(x, ".so"), files) |> sort
@@ -130,7 +137,7 @@ end
 Build new system image (in `background`) for the current project including snooped precompiles.
 """
 function build_sysimage(background::Bool = false)
-    is_asysimg = true
+    is_asysimg = true # Do not ask user to build sysimage again
     if background
         global background_task_lock
         lock(background_task_lock) do

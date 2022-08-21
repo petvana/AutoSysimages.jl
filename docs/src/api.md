@@ -32,4 +32,6 @@ set_packages
 status
 add
 remove
+active_dir
+preferences_path
 ```
