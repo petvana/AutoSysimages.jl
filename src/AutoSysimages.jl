@@ -239,9 +239,15 @@ end
 Get list of packages to be included into sysimage.
 It is determined based on "include" or "exclude" options save by `Preferences.jl` 
 in `LocalPreferences.toml` file next to the currently-active project.
+Notice `dev` packages are excluded unless they are in `include` list.
 """
 function packages_to_include()
-    packages = Set(keys(Pkg.project().dependencies))
+    packages = Set{String}()
+    for (uuid, info) in Pkg.dependencies()
+        if info.is_direct_dep && !info.is_tracking_path
+            push!(packages, info.name)
+        end
+    end
     include = _load_preference("include")
     exclude = _load_preference("exclude")
     if !isnothing(include)
@@ -289,23 +295,24 @@ function status()
     println("`$(preferences_path())`")
 
     println("Packages to be included into sysimage:")
-    versions = Dict{String, Tuple{Any, Any}}()
-    for d in Pkg.dependencies()
-        uuid = d.first
-        version = d.second.version
-        name = d.second.name
-        versions[name] = (uuid, version)
+    infos = Dict{String, Tuple{Any, Pkg.API.PackageInfo}}()
+    for (uuid, info) in Pkg.dependencies()
+        infos[info.name] = (uuid, info)
     end
     packages = packages_to_include()
     for name in packages
-        if !isnothing(get(versions, name, nothing))
-            uuid, version = versions[name]
+        if !isnothing(get(infos, name, nothing))
+            uuid, info = infos[name]
             if Base.have_color
                 printstyled("  [", string(uuid)[1:8], "] "; color = :light_black)
             else
                 print("  [", string(uuid)[1:8], "] ")
             end
-            println("$name v$version")
+            print("$name v$(info.version)")
+            if info.is_tracking_path
+                print(" \`$(info.source)\`")
+            end
+            println()
         else
             @warn "Package $name is not in the project and cannot be included in sysimg."
         end
@@ -319,9 +326,8 @@ function _warn_outdated()
     end
     versions = Dict{Base.UUID, VersionNumber}()
     outdated = Tuple{String, VersionNumber, VersionNumber}[]
-    for d in Pkg.dependencies()
-        uuid = d.first
-        version = d.second.version
+    for (uuid, info) in Pkg.dependencies()
+        version = info.version
         isnothing(version) || (versions[uuid] = version)
     end
     for l in Base.loaded_modules
