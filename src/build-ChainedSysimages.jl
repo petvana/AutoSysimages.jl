@@ -18,7 +18,7 @@ function _build_system_image_chained(sysimg_file)
     end
 
     # First make sure all the packages are precompiled
-    # TODO - enable precompilation while builing chained sysiamge
+    # TODO - enable precompilation while building chained sysimage
     @info "AutoSysimages: Making sure that all packages are precompiled"
     source_txt = """  
     module PrecompileStagingArea;

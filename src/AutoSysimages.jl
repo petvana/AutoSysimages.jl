@@ -45,7 +45,8 @@ function __init__()
     # Detect if loaded `image` was produced by AutoSysimages.jl
     global is_asysimg = startswith(basename(loaded_image), "asysimg-")
     if is_asysimg
-        # Prevent the sysimage to be removed during Julia execution
+        # Prevent the sysimage to be removed during Julia execution.
+        # It needs to be global in order exist for the whole Julia session.
         global _pidlock = mkpidlock("$loaded_image.$(getpid())")
     end
 end
@@ -53,7 +54,7 @@ end
 """
     active_dir()
 
-Get diterctory where the sysimage and precompiles are stored for the current project.
+Get directory where the sysimage and precompiles are stored for the current project.
 The directory is created if it doesn't exist yet.
 """
 function active_dir(projpath = active_project())
