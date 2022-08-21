@@ -9,6 +9,7 @@ function _build_system_image_chained(sysimg_file)
     julia_cmd = joinpath(Sys.BINDIR::String, Base.julia_exename())
     julia_dir = dirname(julia_cmd)
     julia_so = "$julia_dir/../lib/julia/sys.so"
+    project_path = active_project()
 
     # Prepare packages to be included
     using_packages = ""
@@ -28,7 +29,7 @@ function _build_system_image_chained(sysimg_file)
 
     mktempdir() do chained_dir
         @info "AutoSysimages: Building chained system image in $chained_dir"
-        mkpath(active_dir)
+        active_dir()
         cd(chained_dir)
         cp("$(DEPOT_PATH[3])/../../lib/julia/sys-o.a", "sys-o.a", force=true)
         run(`$ar x sys-o.a`)
@@ -59,8 +60,8 @@ include("$precompile_file_path")
         run(`$ar x chained.o.a`) # Extract new sysimage files
         run(`$clang -shared -o $sysimg_file text.o data.o text-old.o`)
         cd("..")
-        @info "New sysimage $sysimg_file generated."
-        @info "Restart of Julia is necessary to load the new sysimage."
+        @info "AutoSysimages: New sysimage $sysimg_file generated."
+        @info "AutoSysimages: Restart of Julia is necessary to load the new sysimage."
     end
     remove_old_sysimages()
 end

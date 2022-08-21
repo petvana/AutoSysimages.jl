@@ -8,13 +8,14 @@ using Dates
 using PackageCompiler
 using TOML
 
+import Base: active_project
+
 export start, latest_sysimage, julia_args, build_sysimage, remove_old_sysimages
-export packages_to_include, set_packages, status, add, remove
+export packages_to_include, set_packages, status, add, remove, active_dir
 
 include("build-PackageCompiler.jl")
 include("build-ChainedSysimages.jl")
 
-active_dir = ""
 precompiles_file = ""
 is_asysimg = false
 
@@ -26,25 +27,21 @@ background_task = nothing
 function __init__()
     global background_task_lock = ReentrantLock()
     # Set global variables
-    global project_path = Base.active_project()
-    if !isfile(project_path)
-        @error "Project file do not exist: $project_path"
-        project_path = nothing
+    projpath = active_project()
+    if !isfile(projpath)
+        @error "Project file do not exist: $projpath"
         return
     end
-    global preferences_path = joinpath(dirname(project_path), "SysimagePreferences.toml")
+    global preferences_path = joinpath(dirname(projpath), "SysimagePreferences.toml")
     # Create short directory name
-    hash_name = string(hash(project_path), base = 62, pad = 11)
-    global active_dir = joinpath(DEPOT_PATH[1], "asysimg", "$VERSION", hash_name)
-    # TODO - do not create dir in `__init__`
-    if !isdir(active_dir)
-        mkpath(active_dir)
-        # Print information about the project
-        open(joinpath(active_dir, "project-path.txt"), "w") do io
-            print(io, "$project_path\n")
+    adir = active_dir(projpath)
+    project_path_file = joinpath(adir, "project-path.txt")
+    if !isfile(project_path_file)
+        open(project_path_file, "w") do io
+            print(io, "$projpath\n")
         end
     end
-    global precompiles_file =  joinpath(active_dir, "snoop-file.jl")
+    global precompiles_file =  joinpath(adir, "snoop-file.jl")
     global image = unsafe_string(Base.JLOptions().image_file)
     # Detect if loaded `image` was produced by AutoSysimages.jl
     global is_asysimg = startswith(basename(image), "asysimg-")
@@ -55,14 +52,28 @@ function __init__()
 end
 
 """
+    active_dir()
+
+Get diterctory where the sysimage and precompiles are stored for the current project.
+The directory is created if it doesn't exist yet.
+"""
+function active_dir(project_path = active_project())
+    hash_name = string(Base._crc32c(project_path), base = 62, pad = 6)
+    adir = joinpath(DEPOT_PATH[1], "asysimg", "$VERSION", hash_name)
+    !isdir(adir) && mkpath(adir)
+    return adir
+end
+
+"""
     latest_sysimage()
 
 Return the path to the latest system image produced by AutoSysimages,
 or `nothing` if no such image exits.
 """
 function latest_sysimage()
-    !isdir(active_dir) && return nothing
-    files = readdir(active_dir, join = true)
+    adir = active_dir()
+    !isdir(adir) && return nothing
+    files = readdir(adir, join = true)
     sysimages = filter(x -> endswith(x, ".so"), files) |> sort
     return isempty(sysimages) ? nothing : sysimages[end]
 end
@@ -75,7 +86,10 @@ Get Julia arguments for running AutoSysimages:
 - `"-L [@__DIR__]/start.jl"` - starts AutoSysimages automatically.
 """
 function julia_args()
-    isnothing(project_path) && return ""
+    if !isfile(active_project())
+        @error "Project file do not exist: $projpath"
+        return
+    end
     image = latest_sysimage()
     startfile = joinpath(@__DIR__, "start.jl")
     return (isnothing(image) ? "" : " -J $image") * " -L $startfile" 
@@ -88,9 +102,7 @@ Starts AutoSysimages package. It's usually called by `start.jl` file;
 but it can be called manually as well.
 """
 function start()
-    if isnothing(project_path)
-        return
-    end
+    isfile(active_project()) || return
     _start_snooping()
     txt = "The package AutoSysimages.jl started!"
     if is_asysimg
@@ -98,7 +110,7 @@ function start()
     else
         txt *= "\n Loaded sysimage:    Default (You may run AutoSysimages.build_sysimage())"
     end
-    txt *= "\n Active directory:   $active_dir"
+    txt *= "\n Active directory:   $(active_dir())"
     txt *= "\n Global snoop file:  $precompiles_file"
     txt *= "\n Tmp. snoop file:    $snoop_file"
     @info txt
@@ -138,11 +150,12 @@ end
 """
     remove_old_sysimages()
 
-Remove old sysimages for the current project (`active_dir`).
+Remove old sysimages for the current project (`active_dir()`).
 """
 function remove_old_sysimages()
-    mkpidlock(joinpath(active_dir, "rm.lock")) do
-        files = readdir(active_dir, join = true)
+    adir = active_dir()
+    mkpidlock(joinpath(adir, "rm.lock")) do
+        files = readdir(adir, join = true)
         sysimages = filter(x -> endswith(x, ".so"), files)
         latest = latest_sysimage()
         for si in sysimages
@@ -260,7 +273,7 @@ function status()
     else
         print("    Project ")
     end
-    println("`$project_path`")
+    println("`$(active_project())`")
     if Base.have_color
         printstyled("   Settings ", color = :magenta)
     else
@@ -367,7 +380,7 @@ function _save_statements()
     end
 
     global precompiles_file
-    @info("Copy snooped statements to: $(precompiles_file)")
+    @info("AutoSysimages: Copy snooped statements to: $(precompiles_file)")
     mkpidlock("$precompiles_file.lock") do
         oldprec = isfile(precompiles_file) ? readlines(precompiles_file) : String[]
         old = Set{String}(oldprec)
@@ -408,7 +421,7 @@ end
 function _build_system_image()
     t = Dates.now()
     t_start = time()
-    sysimg_file = "$active_dir/asysimg-$t.so"
+    sysimg_file = joinpath(string(active_dir()), "asysimg-$t.so")
     chained = false
     try 
         # Enable chained building of system image
@@ -422,7 +435,7 @@ function _build_system_image()
     else
         _build_system_image_package_compiler(sysimg_file)
     end
-    @info "Compilation time: $(time() - t_start) s"
+    @info "AutoSysimages: Builded in $(time() - t_start) s"
 end
 
 function _set_preference!(pair::Pair{String, T}) where T
