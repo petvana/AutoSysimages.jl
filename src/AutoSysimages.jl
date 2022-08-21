@@ -13,14 +13,12 @@ import Base: active_project
 export start, latest_sysimage, julia_args, build_sysimage, remove_old_sysimages
 export packages_to_include, set_packages, status, add, remove, active_dir
 
+include("snooping.jl")
 include("build-PackageCompiler.jl")
 include("build-ChainedSysimages.jl")
 
 precompiles_file = ""
 is_asysimg = false
-
-snoop_file = nothing
-snoop_file_io = nothing
 
 background_task = nothing
 
@@ -110,7 +108,19 @@ but it can be called manually as well.
 """
 function start()
     isfile(active_project()) || return
-    _start_snooping()
+    Snooping.start_snooping()
+    function _atexit()
+        statements = Snooping.stop_snooping()
+        @info("AutoSysimages: Copy snooped statements to: $(precompiles_file)")
+        _append_statements(statements)
+        if !is_asysimg
+            @warn "There is no sysimage for this project. Do you want to build one?"
+            if REPL.TerminalMenus.request(REPL.TerminalMenus.RadioMenu(["Yes", "No"])) == 1
+                build_sysimage()
+            end
+        end
+    end
+    atexit(_atexit)
     txt = "The package AutoSysimages.jl started!"
     if is_asysimg
         txt *= "\n Loaded sysimage:    $loaded_image"
@@ -119,7 +129,7 @@ function start()
     end
     txt *= "\n Active directory:   $(active_dir())"
     txt *= "\n Global snoop file:  $precompiles_file"
-    txt *= "\n Tmp. snoop file:    $snoop_file"
+    txt *= "\n Tmp. snoop file:    $(Snooping.snoop_file)"
     @info txt
     if isinteractive()
         _update_prompt()
@@ -352,42 +362,6 @@ function _warn_outdated()
     end
 end
 
-function _start_snooping()
-    global snoop_file_io
-    if snoop_file_io === nothing
-        global snoop_file = "$(tempname())-snoop.jl"
-        mkpath(dirname(snoop_file))
-        global snoop_file_io = open(snoop_file, "w")
-        ccall(:jl_dump_compiles, Cvoid, (Ptr{Cvoid},), snoop_file_io.handle)
-        atexit(_stop_snooping)
-    else
-        @warn("Snooping is already running -> $(snoop_file)")
-    end
-end
-
-function _stop_snooping()
-    global snoop_file_io
-    if isnothing(snoop_file_io)
-        @warn("No active snooping file")
-        return 
-    end
-    ccall(:jl_dump_compiles, Cvoid, (Ptr{Cvoid},), C_NULL)
-    close(snoop_file_io)
-    snoop_file_io = nothing
-    _save_statements()
-    isfile(snoop_file) && rm(snoop_file)
-    if !is_asysimg
-        @warn "There is no sysimage for this project. Do you want to build one?"
-        if REPL.TerminalMenus.request(REPL.TerminalMenus.RadioMenu(["Yes", "No"])) == 1
-            build_sysimage()
-        end
-    end
-end
-
-function _flush_statements()
-    !isnothing(snoop_file_io) && flush(snoop_file_io)
-end
-
 function _append_statements(precompiles::Vector{String})
     global precompiles_file
     mkpidlock("$precompiles_file.lock") do
@@ -402,18 +376,6 @@ function _append_statements(precompiles::Vector{String})
             end
         end
     end
-end
-
-function _save_statements()
-    _flush_statements()
-    lines = readlines(snoop_file)
-    precompiles = String[]
-    for line in lines
-        sp = split(line, "\t")
-        length(sp) == 2 && push!(precompiles, sp[2][2:end-1])
-    end
-    @info("AutoSysimages: Copy snooped statements to: $(precompiles_file)")
-    _append_statements(precompiles)
 end
 
 # TODO - make it compatible with OhMyREPL
