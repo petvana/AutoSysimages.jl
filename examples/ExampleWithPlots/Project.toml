@@ -1,10 +1,13 @@
-authors = ["Petr Vana <petvana@centrum.cz>"]
 name = "ExampleWithPlots"
 uuid = "869e8dd4-39bf-4a4d-8b19-a1d744f04ecb"
+authors = ["Petr Vana <petvana@centrum.cz>"]
 version = "0.1.0"
 
 [deps]
+LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+OhMyREPL = "5fb14364-9ced-5910-84b2-373655c76a03"
 Plots = "91a5bcdd-55d7-5caf-9e0b-520d859cae80"
+Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
 
 [extras]
 AutoSysimages = "4eb35182-e5c8-446d-8ecc-33e714a26cef"
