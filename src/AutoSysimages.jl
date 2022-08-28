@@ -9,9 +9,10 @@ using PackageCompiler
 using TOML
 
 import Base: active_project
+import REPL: REPL.TerminalMenus.request, REPL.TerminalMenus.RadioMenu, REPL.TerminalMenus.MultiSelectMenu
 
 export start, latest_sysimage, julia_args, build_sysimage, remove_old_sysimages
-export packages_to_include, set_packages, status, add, remove, active_dir
+export packages_to_include, select_packages, status, add, remove, active_dir
 
 include("snooping.jl")
 include("build-PackageCompiler.jl")
@@ -115,7 +116,7 @@ function start()
         _append_statements(statements)
         if !is_asysimg
             @warn "There is no sysimage for this project. Do you want to build one?"
-            if REPL.TerminalMenus.request(REPL.TerminalMenus.RadioMenu(["Yes", "No"])) == 1
+            if request(RadioMenu(["Yes", "No"])) == 1
                 build_sysimage()
             end
         end
@@ -133,10 +134,6 @@ function start()
     @info txt
     if isinteractive()
         _update_prompt()
-        if isnothing(_load_preference("include"))
-            _set_preference!("include" => [])
-            _set_preference!("exclude" => [])
-        end
         is_asysimg && VERSION >= v"1.8" && _warn_outdated()
     end
 end
@@ -147,7 +144,25 @@ end
 Build new system image (in `background`) for the current project including snooped precompiles.
 """
 function build_sysimage(background::Bool = false)
-    global is_asysimg = true # Do not ask user to build sysimage again
+    # Do not ask user to build sysimage again
+    global is_asysimg = true
+
+    # Check if the project is already set
+    if isnothing(_load_preference("include"))
+        if isinteractive()
+            @warn """AutoSysimages: No project settings (SysimagePreferences.toml) found.
+Do you want to select packages to be included now?"""
+            if request(RadioMenu(["Yes (select packages)", "No (include all packages)"])) == 1
+                set_packages()
+            else
+                _set_preference!("include" => [])
+                _set_preference!("exclude" => [])
+            end
+        else
+            @warn "AutoSysimages: No project settings (SysimagePreferences.toml) found."
+        end
+    end
+
     if background
         global background_task_lock
         lock(background_task_lock) do
@@ -186,13 +201,28 @@ function remove_old_sysimages()
 end
 
 """
-    set_packages()
+    select_packages()
 
 Ask the user to choose which packages to include into the sysimage.
 """
-function set_packages()
-    # TODO - ask user (and print him/her all the options)
-    _set_preference!("include" => ["OhMyREPL"])
+function select_packages()
+    all_packages = packages_to_include(;include_all = true) |> collect |> sort
+    @info "Do you want to select packages to"
+    include = _load_preference("include")
+    exclude = _load_preference("exclude")
+    selected = Int[]
+    if include isa Vector{String}
+        for (idx, package) in enumerate(all_packages)
+            package ∈ include && push!(selected, idx)
+        end
+    elseif exclude isa Vector{String}
+        for (idx, package) in enumerate(all_packages)
+            package ∈ exclude || push!(selected, idx)
+        end
+    end
+    user_selected = request(MultiSelectMenu(all_packages; selected = selected))
+    _set_preference!("include" => all_packages[collect(user_selected)])
+    _set_preference!("exclude" => [])
 end
 
 """
@@ -251,17 +281,19 @@ It is determined based on "include" or "exclude" options save by `Preferences.jl
 in `LocalPreferences.toml` file next to the currently-active project.
 Notice `dev` packages are excluded unless they are in `include` list.
 """
-function packages_to_include()
+function packages_to_include(;include_all = false)
     packages = Set{String}()
     include_AutoSysimages = false
     for (uuid, info) in Pkg.dependencies()
         if info.is_direct_dep && !info.is_tracking_path
             push!(packages, info.name)
         end
+        # Include AutoSysimages only if it is not in "dev" mode
         if info.name == "AutoSysimages" && !info.is_tracking_path
             include_AutoSysimages = true
         end
     end
+    include_all && return packages
     include = _load_preference("include")
     exclude = _load_preference("exclude")
     if !isnothing(include)
