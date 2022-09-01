@@ -1,10 +1,4 @@
 #!/usr/bin/env bash
-
-# Runs julia with user-specific system images.
-# This is part of AutoSysimages.jl package
-# https://github.com/petvana/AutoSysimages.jl
-
-JULIA_EXE=julia
-
-julia_cmd=`$JULIA_EXE -e "using AutoSysimages; print(AutoSysimages.julia_args()); exit(0);" "$@"`
+JULIA_EXE=julia     # or [INSERT-YOUR-PATH]/julia
+julia_cmd=`$JULIA_EXE -e "using AutoSysimages; print(julia_args()); exit();"`
 $JULIA_EXE $julia_cmd "$@"
