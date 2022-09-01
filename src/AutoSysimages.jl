@@ -115,7 +115,7 @@ function start()
         @info("AutoSysimages: Copy snooped statements to: $(precompiles_file)")
         _append_statements(statements)
         if !is_asysimg
-            @warn "There is no sysimage for this project. Do you want to build one?"
+            @info "There is no sysimage for this project. Do you want to build one?"
             if request(RadioMenu(["Yes", "No"])) == 1
                 build_sysimage()
             end
@@ -150,16 +150,16 @@ function build_sysimage(background::Bool = false)
     # Check if the project is already set
     if isnothing(_load_preference("include"))
         if isinteractive()
-            @warn """AutoSysimages: No project settings (SysimagePreferences.toml) found.
+            @info """AutoSysimages: No project settings (SysimagePreferences.toml) found.
 Do you want to select packages to be included now?"""
             if request(RadioMenu(["Yes (select packages)", "No (include all packages)"])) == 1
-                set_packages()
+                select_packages()
             else
                 _set_preference!("include" => [])
                 _set_preference!("exclude" => [])
             end
         else
-            @warn "AutoSysimages: No project settings (SysimagePreferences.toml) found."
+            @info "AutoSysimages: No project settings (SysimagePreferences.toml) found."
         end
     end
 
@@ -207,7 +207,7 @@ Ask the user to choose which packages to include into the sysimage.
 """
 function select_packages()
     all_packages = packages_to_include(;include_all = true) |> collect |> sort
-    @info "Do you want to select packages to"
+    @info "Please select packages to be included into sysimage:"
     include = _load_preference("include")
     exclude = _load_preference("exclude")
     selected = Int[]
