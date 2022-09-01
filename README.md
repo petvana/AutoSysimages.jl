@@ -15,3 +15,7 @@ This package automates building of user-specific system images (sysimages) for t
 - Warns if the loaded sysimage contains outdated packages (Julia v1.8+).
 
 Please see the documentation for more details.
+
+### Thanks
+
+This project has been supported by **Google Summer of Code 2022**.
