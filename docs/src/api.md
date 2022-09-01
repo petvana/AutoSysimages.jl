@@ -28,7 +28,7 @@ julia_args
 build_sysimage
 remove_old_sysimages
 packages_to_include
-set_packages
+select_packages
 status
 add
 remove
