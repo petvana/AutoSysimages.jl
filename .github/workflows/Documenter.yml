@@ -1,10 +1,12 @@
 name: Documenter
+
 on:
   push:
     branches:
-      - main
-    # tags: '*'
+      - master # update to match your development branch (master, main, dev, trunk, ...)
+    tags: '*'
   pull_request:
+
 jobs:
   build:
     runs-on: ubuntu-latest

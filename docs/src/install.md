@@ -18,6 +18,16 @@ asysimg_args=`$JULIA_EXE -e "using AutoSysimages; print(julia_args()); exit();"`
 $JULIA_EXE $asysimg_args "$@"
 ```
 
+## Script for Windows
+
+On Windows, you can use the following batch script that is provided in `scripts/windows/asysimg.bat`. It's recomended add Julia to `PATH` during installation, and but `asysimg.bat` into the binary file (e.g., `"C:\\Users\\xxx\\AppData\\Local\\Programs\\Julia-1.X.X\\bin"`).
+
+``` bash
+@echo off
+for /f "tokens=1-4" %%i in ('julia.exe -e "using AutoSysimages; print(julia_args()); exit()"') do set A=%%i %%j %%k %%l 
+@"%~dp0\julia.exe" %A% %*
+```
+
 ## Basic usage
 
 Once you install the package and save the script, you can easily run Julia from terminal, using one of the following options with any additional arguments, as normal. It automatically loads the latest system image for your project and start snooping for new precompile statements.
