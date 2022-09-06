@@ -9,7 +9,7 @@ The easiest way to use this package is to insert a small script somewhere into y
 
 ## Script for Linux
 
-On Linux, you can use the following batch script that is provided in `scripts/linux/asysimg`. The recommended location is `~/.local/bin/asysimg`.
+On Linux, you can use the following bash script that is provided in `scripts/linux/asysimg`. The recommended location is `~/.local/bin/asysimg`.
 
 ``` bash
 #!/usr/bin/env bash
@@ -20,7 +20,7 @@ $JULIA_EXE $asysimg_args "$@"
 
 ## Script for Windows
 
-On Windows, you can use the following bash script that is provided in `scripts/windows/asysimg.bat`. It's recomended add Julia to `PATH` during installation, and but `asysimg.bat` into the binary file (e.g., `"C:\\Users\\xxx\\AppData\\Local\\Programs\\Julia-1.X.X\\bin"`).
+On Windows, you can use the following batch script that is provided in `scripts/windows/asysimg.bat`. It's recomended add Julia to `PATH` during installation, and but `asysimg.bat` into the binary file (e.g., `"C:\\Users\\xxx\\AppData\\Local\\Programs\\Julia-1.X.X\\bin"`).
 
 ``` bash
 @echo off
