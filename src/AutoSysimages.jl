@@ -371,6 +371,10 @@ function _warn_outdated()
         @warn "Julia v1.8+ is needed to check package versions."
         return
     end
+    if !isdefined(Main, :pkgversion)
+        @warn "Function 'pkgversion' is needed to check versions."
+        return
+    end
     versions = Dict{Base.UUID, VersionNumber}()
     outdated = Tuple{String, VersionNumber, VersionNumber}[]
     for (uuid, info) in Pkg.dependencies()
@@ -435,7 +439,8 @@ end
 
 function _build_system_image()
     t_start = time()
-    sysimg_file = joinpath(string(active_dir()), "asysimg-$(Dates.now()).so")
+    datenow = replace("$(Dates.now())", ":" => "-")
+    sysimg_file = joinpath(string(active_dir()), "asysimg-$datenow.so")
 
     # First collect precompile statements for a dummy run (e.g., with -e "")
     @info "AutoSysimages: Collecting precompile statements for empty run (-e \"\")"
