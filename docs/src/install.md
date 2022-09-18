@@ -9,14 +9,13 @@ The easiest way to use this package is to insert a small script somewhere into y
 
 ## Script for Linux
 
-On Linux, you can use the following bash script that is provided in `scripts/linux/asysimg`. The recommended location is `~/.local/bin/asysimg`.
-
-``` bash
-#!/usr/bin/env bash
-JULIA_EXE=julia     # or [INSERT-YOUR-PATH]/julia
-asysimg_args=`$JULIA_EXE -e "using AutoSysimages; print(julia_args()); exit();" "$@"`
-$JULIA_EXE $asysimg_args "$@"
+On Linux, you can install the `asysimg` script simply by running
+```julia
+using AutoSysimages
+install()
 ```
+
+It copies `[PACKAGE]/scripts/linux/asysimg` file into `~/.local/bin/asysimg` which should be in your `PATH`. If the `bin` directory didn't previously exist, it is necessary to re-load the terminal to set `PATH` correctly.
 
 ## Script for Windows
 
