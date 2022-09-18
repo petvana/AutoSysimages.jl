@@ -7,3 +7,7 @@ if VERSION < v"1.9.0"
         @test AutoSysimages.pkgversion(PackageCompiler) > v"0.1.0"
     end
 end
+
+@testset "_warn_outdated() runs" begin
+    @test isnothing(AutoSysimages._warn_outdated())
+end
