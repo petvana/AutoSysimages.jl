@@ -394,7 +394,7 @@ function install(dir=_default_install_dir())
         dir_exists = ispath(dir)
         dir_exists || mkpath(dir)
         script = joinpath(@__DIR__, "..", "scripts", "linux", "asysimg")
-        script = abspth(normpath(script))
+        script = abspath(normpath(script))
         cp(script, joinpath(dir, "asysimg"), force=true)
 
         if isinteractive()
