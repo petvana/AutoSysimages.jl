@@ -5,7 +5,7 @@ using Pkg
 if VERSION < v"1.9.0"
     if VERSION < v"1.7.0"
         function pkgdir(m::Module, paths::String...)
-            rootmodule = moduleroot(m)
+            rootmodule = Base.moduleroot(m)
             path = pathof(rootmodule)
             path === nothing && return nothing
             return joinpath(dirname(dirname(path)), paths...)
