@@ -18,6 +18,10 @@ include("snooping.jl")
 include("build-PackageCompiler.jl")
 include("build-ChainedSysimages.jl")
 
+# TODO: This can be removed once Julia 1.9+ is required
+# This should not happen before v1.9+ becomes LTS.
+include("pkgversion.jl")
+
 precompiles_file = ""
 is_asysimg = false
 
