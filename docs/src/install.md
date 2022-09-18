@@ -14,7 +14,7 @@ On Linux, you can use the following bash script that is provided in `scripts/lin
 ``` bash
 #!/usr/bin/env bash
 JULIA_EXE=julia     # or [INSERT-YOUR-PATH]/julia
-asysimg_args=`$JULIA_EXE -e "using AutoSysimages; print(julia_args()); exit();"`
+asysimg_args=`$JULIA_EXE -e "using AutoSysimages; print(julia_args()); exit();" "$@"`
 $JULIA_EXE $asysimg_args "$@"
 ```
 

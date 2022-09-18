@@ -16,6 +16,6 @@ On Ubuntu, you can modify `scripts/linux/asysimg` script in `~/.local/bin/asysim
 ``` bash
 #!/usr/bin/env bash
 JULIA_EXE=[INSERT-YOUR-PATH-TO-petvana:pv/fastsysimg-BRANCH]/julia
-asysimg_args=`$JULIA_EXE -e "using AutoSysimages; print(julia_args()); exit();"`
+asysimg_args=`$JULIA_EXE -e "using AutoSysimages; print(julia_args()); exit();" "$@"`
 $JULIA_EXE $asysimg_args "$@"
 ```

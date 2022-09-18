@@ -1,4 +1,4 @@
 #!/usr/bin/env bash
 JULIA_EXE=julia     # or [INSERT-YOUR-PATH]/julia
-julia_cmd=`$JULIA_EXE -e "using AutoSysimages; print(julia_args()); exit();"`
-$JULIA_EXE $julia_cmd "$@"
+asysimg_args=`$JULIA_EXE -e "using AutoSysimages; print(julia_args()); exit();" "$@"`
+$JULIA_EXE $asysimg_args "$@"
