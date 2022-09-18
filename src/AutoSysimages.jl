@@ -12,7 +12,7 @@ import Base: active_project
 import REPL: REPL.TerminalMenus.request, REPL.TerminalMenus.RadioMenu, REPL.TerminalMenus.MultiSelectMenu
 
 export start, latest_sysimage, julia_args, build_sysimage, remove_old_sysimages
-export packages_to_include, select_packages, status, add, remove, active_dir
+export packages_to_include, select_packages, status, add, remove, active_dir, install
 
 include("snooping.jl")
 include("build-PackageCompiler.jl")
@@ -363,6 +363,30 @@ function status()
         else
             @warn "Package $name is not in the project and cannot be included in sysimg."
         end
+    end
+end
+
+"""
+    install()
+
+This install the `asysimg` scripts.
+(Currently implemented only for Linux.)
+"""
+function install(dir=joinpath(homedir(), ".local/bin"))
+    if Sys.islinux()
+        dir_exists = ispath(dir)
+        dir_exists || mkpath(dir)
+        script = joinpath(@__DIR__, "..", "scripts", "linux", "asysimg")
+        cp(script, joinpath(dir, "asysimg"), force=true)
+        if dir_exists
+            isinteractive() && @info "AutoSysimages: Now you can run `asysimg` in terminal."
+        else
+            @warn """AutoSysimages: Please restart your terminal before running `asysimg`
+to load the script into the `PATH`."""
+        end
+    else
+        @warn """AutoSysimages: Installation is not yet supported for your OS.
+Feel free to submit a PR."""
     end
 end
 
