@@ -160,8 +160,7 @@ function build_sysimage(background::Bool = false)
         if isinteractive()
             @info """AutoSysimages: No project settings (SysimagePreferences.toml) found.
 Do you want to select packages to be included now?"""
-            if request(RadioMenu(["Yes (select packages)", "No (include all packages)"])) ==
-               1
+            if request(RadioMenu(["Yes (select packages)", "No (include all packages)"])) == 1
                 select_packages()
             else
                 _set_preference!("include" => [])
@@ -400,18 +399,17 @@ function install(dir = _default_install_dir())
 
     if Sys.islinux() || Sys.isapple()
         script = joinpath(@__DIR__, "..", "scripts", "linux", "asysimg")
-        script = abspath(normpath(script))
-        cp(script, joinpath(dir, "asysimg"), force = true)
+        script_fn = "asysimg"
     elseif Sys.iswindows()
         script = joinpath(@__DIR__, "..", "scripts", "windows", "asysimg.bat")
-        script = abspath(normpath(script))
-        cp(script, joinpath(dir, "asysimg.bat"), force = true)
-
+        script_fn = "asysimg.bat"
     else
         @warn """AutoSysimages: Installation is not yet supported for your OS.
 Feel free to submit a PR."""
     end
 
+    script = abspath(normpath(script))
+    cp(script, joinpath(dir, script_fn), force = true)
 
     if isinteractive()
         @info """AutoSysimages: The `asysimg` script was copied to:
