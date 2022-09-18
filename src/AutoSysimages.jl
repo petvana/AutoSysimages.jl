@@ -370,23 +370,45 @@ function status()
     end
 end
 
+function _default_install_dir()
+    if Sys.islinux()
+        return joinpath(homedir(), ".local/bin")
+    elseif Sys.isapple()
+        return joinpath(homedir(), "bin")
+    # TODO: Support installation for Windows
+    # elseif Sys.iswindows()
+        # return smth
+    else
+        return nothing
+    end
+end
+
 """
     install()
 
 This install the `asysimg` scripts.
 (Currently implemented only for Linux.)
 """
-function install(dir=joinpath(homedir(), ".local/bin"))
-    if Sys.islinux()
+function install(dir=_default_install_dir())
+    if Sys.islinux() || Sys.isapple()
         dir_exists = ispath(dir)
         dir_exists || mkpath(dir)
         script = joinpath(@__DIR__, "..", "scripts", "linux", "asysimg")
+        script = abspth(normpath(script))
         cp(script, joinpath(dir, "asysimg"), force=true)
-        if dir_exists
-            isinteractive() && @info "AutoSysimages: Now you can run `asysimg` in terminal."
-        else
+
+        if isinteractive()
+            @info """AutoSysimages: The `asysimg` script was copied to:
+$(script)
+
+Now you can run `asysimg` in terminal (instead of `julia`)"""
+        end
+
+        if !dir_exists
             @warn """AutoSysimages: Please restart your terminal before running `asysimg`
-to load the script into the `PATH`."""
+to load the script into the `PATH`.
+
+If this not works please add the script into your `PATH`."""
         end
     else
         @warn """AutoSysimages: Installation is not yet supported for your OS.
