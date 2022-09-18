@@ -18,6 +18,10 @@ include("snooping.jl")
 include("build-PackageCompiler.jl")
 include("build-ChainedSysimages.jl")
 
+# TODO: This can be removed once Julia 1.9+ is required
+# This should not happen before v1.9+ becomes LTS.
+include("pkgversion.jl")
+
 precompiles_file = ""
 is_asysimg = false
 
@@ -134,7 +138,7 @@ function start()
     @info txt
     if isinteractive()
         _update_prompt()
-        is_asysimg && VERSION >= v"1.8" && _warn_outdated()
+        is_asysimg && _warn_outdated()
     end
 end
 
@@ -391,14 +395,6 @@ Feel free to submit a PR."""
 end
 
 function _warn_outdated()
-    if VERSION < v"1.8"
-        @warn "Julia v1.8+ is needed to check package versions."
-        return
-    end
-    if !isdefined(Main, :pkgversion)
-        @warn "Function 'pkgversion' is needed to check versions."
-        return
-    end
     versions = Dict{Base.UUID, VersionNumber}()
     outdated = Tuple{String, VersionNumber, VersionNumber}[]
     for (uuid, info) in Pkg.dependencies()
