@@ -11,3 +11,11 @@ end
 @testset "_warn_outdated() runs" begin
     @test isnothing(AutoSysimages._warn_outdated())
 end
+
+@testset "install()" begin
+    if Sys.islinux() || Sys.isapple()
+        tmp_dir = mktempdir()
+        install(tmp_dir)
+        @test isfile(joinpath(tmp_dir, "asysimg"))
+    end
+end
