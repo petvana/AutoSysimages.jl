@@ -406,7 +406,6 @@ function install(dir = _default_install_dir())
         script = joinpath(@__DIR__, "..", "scripts", "windows", "asysimg.bat")
         script = abspath(normpath(script))
         cp(script, joinpath(dir, "asysimg.bat"), force = true)
-
     else
         @warn """AutoSysimages: Installation is not yet supported for your OS.
 Feel free to submit a PR."""
