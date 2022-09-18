@@ -138,7 +138,7 @@ function start()
     @info txt
     if isinteractive()
         _update_prompt()
-        is_asysimg && VERSION >= v"1.8" && _warn_outdated()
+        is_asysimg && _warn_outdated()
     end
 end
 
@@ -371,14 +371,6 @@ function status()
 end
 
 function _warn_outdated()
-    if VERSION < v"1.8"
-        @warn "Julia v1.8+ is needed to check package versions."
-        return
-    end
-    if !isdefined(Main, :pkgversion)
-        @warn "Function 'pkgversion' is needed to check versions."
-        return
-    end
     versions = Dict{Base.UUID, VersionNumber}()
     outdated = Tuple{String, VersionNumber, VersionNumber}[]
     for (uuid, info) in Pkg.dependencies()
