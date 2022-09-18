@@ -1,31 +1,23 @@
 # Installation and usage
 
 You can easily install the package using the standard packaging system:
-``` julia
+```julia
 ] add AutoSysimages
 ```
 
-The easiest way to use this package is to insert a small script somewhere into your path depending on your operation system.
+Then, the `install()` function inserts a small script somewhere into your path depending on your operation system.
 
-## Script for Linux
-
-On Linux, you can install the `asysimg` script simply by running
 ```julia
 using AutoSysimages
 install()
 ```
 
-It copies `[PACKAGE]/scripts/linux/asysimg` file into `~/.local/bin/asysimg` which should be in your `PATH`. If the `bin` directory didn't previously exist, it is necessary to re-load the terminal to set `PATH` correctly.
+On Linux and MacOS, it copies `scripts/linux/asysimg` script into `~/.local/bin` or `~/bin`, respectively.
+These directories should be in your `PATH`.
+If the `bin` directory didn't previously exist, it is necessary to re-load the terminal to set `PATH` correctly.
 
-## Script for Windows
-
-On Windows, you can use the following batch script that is provided in `scripts/windows/asysimg.bat`. It's recomended add Julia to `PATH` during installation, and but `asysimg.bat` into the binary file (e.g., `"C:\\Users\\xxx\\AppData\\Local\\Programs\\Julia-1.X.X\\bin"`).
-
-``` bash
-@echo off
-for /f "tokens=1-4" %%i in ('julia.exe -e "using AutoSysimages; print(julia_args()); exit()"') do set A=%%i %%j %%k %%l 
-@"%~dp0\julia.exe" %A% %*
-```
+On Windows, it copies `scripts/windows/asysimg.bat` script into `Sys.BINDIR`.
+It's necessary to have this directory in `PATH`, as recommended in [https://julialang.org/downloads/platform/](https://julialang.org/downloads/platform/).
 
 ## Basic usage
 
