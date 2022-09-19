@@ -13,9 +13,10 @@ end
 end
 
 @testset "install()" begin
-    if Sys.islinux() || Sys.isapple()
+    if Sys.islinux() || Sys.isapple() || Sys.iswindows()
         tmp_dir = mktempdir()
         install(tmp_dir)
-        @test isfile(joinpath(tmp_dir, "asysimg"))
+        file_name = Sys.iswindows() ? "asysimg.bat" : "asysimg"
+        @test isfile(joinpath(tmp_dir, file_name))
     end
 end
