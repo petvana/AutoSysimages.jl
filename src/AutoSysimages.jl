@@ -419,8 +419,6 @@ Feel free to submit a PR."""
     end
     chmod(script, 0o774)
 
-    run(`cat $(joinpath(dir, file_name))`)
-
     if isinteractive()
         @info """AutoSysimages: The `asysimg` script was copied to:
 $(dir)
