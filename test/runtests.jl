@@ -28,8 +28,9 @@ function run_and_get_last_line(cmd)
 end
 
 @testset "install and run asysimg, default project" begin
-    @test ispath("../examples/ExampleWithPlots")
-    for proj in ["-q", "--project", "--project=../examples/ExampleWithPlots"]
+    plots_exemple = abspath("../examples/ExampleWithPlots")
+    @test ispath(plots_exemple)
+    for proj in ["-q", "--project", "--project=$plots_exemple"]
         @show proj
         if Sys.islinux() || Sys.isapple() || Sys.iswindows()
             tmp_dir = mktempdir()
