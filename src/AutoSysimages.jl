@@ -393,23 +393,19 @@ This install the `asysimg` scripts.
 (Currently implemented only for Linux.)
 """
 function install(dir = _default_install_dir())
+    if isnothing(dir)
+        @warn """AutoSysimages: Installation is not yet supported for your OS.
+Feel free to submit a PR."""
+        return
+    end
 
     dir_exists = ispath(dir)
     dir_exists || mkpath(dir)
 
-    if Sys.islinux() || Sys.isapple()
-        script = joinpath(@__DIR__, "..", "scripts", "linux", "asysimg")
-        script_fn = "asysimg"
-    elseif Sys.iswindows()
-        script = joinpath(@__DIR__, "..", "scripts", "windows", "asysimg.bat")
-        script_fn = "asysimg.bat"
-    else
-        @warn """AutoSysimages: Installation is not yet supported for your OS.
-Feel free to submit a PR."""
-    end
-
-    script = abspath(normpath(script))
-    cp(script, joinpath(dir, script_fn), force = true)
+    (os, file_name) = Sys.iswindows() ? ("windows", "asysimg.bat") : ("unix", "asysimg")
+    source = joinpath(@__DIR__, "..", "scripts", os, file_name)
+    source = abspath(normpath(source))
+    cp(source, joinpath(dir, file_name), force = true)
 
     if isinteractive()
         @info """AutoSysimages: The `asysimg` script was copied to:

@@ -12,7 +12,7 @@ using AutoSysimages
 install()
 ```
 
-On Linux and MacOS, it copies `scripts/linux/asysimg` script into `~/.local/bin` or `~/bin`, respectively.
+On Linux and MacOS, it copies `scripts/unix/asysimg` script into `~/.local/bin` or `~/bin`, respectively.
 These directories should be in your `PATH`.
 If the `bin` directory didn't previously exist, it is necessary to re-load the terminal to set `PATH` correctly.
 
