@@ -405,7 +405,28 @@ Feel free to submit a PR."""
     (os, file_name) = Sys.iswindows() ? ("windows", "asysimg.bat") : ("unix", "asysimg")
     source = joinpath(@__DIR__, "..", "scripts", os, file_name)
     source = abspath(normpath(source))
-    cp(source, joinpath(dir, file_name), force = true)
+    julia_bin = unsafe_string(Base.JLOptions().julia_bin)
+
+    script = joinpath(dir, file_name)
+    open(script, "w") do io
+        for line in readlines(source)
+            txt = line
+            if Sys.islinux() || sys.isapple()
+                if startswith(line, "JULIA_EXE=")
+                    txt = "JULIA_EXE=$julia_bin # or [INSERT-YOUR-PATH]/julia"
+                end
+            end
+            if Sys.iswindows()
+                if startswith(line, "set julia=")
+                    txt = "set julia=$julia_bin"
+                end
+            end
+            write(io, txt, "\n")
+        end
+    end
+    chmod(script, 0o774)
+
+    run(`cat $(joinpath(dir, file_name))`)
 
     if isinteractive()
         @info """AutoSysimages: The `asysimg` script was copied to:
