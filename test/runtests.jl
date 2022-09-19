@@ -40,12 +40,19 @@ end
             original_sysimage = unsafe_string(Base.JLOptions().image_file)
             sysimage = run_and_get_last_line(`$asysimg_path "$proj" -e "using AutoSysimages; println(AutoSysimages._generate_sysimage_name()); exit();"`)
             @show sysimage
-            #touch(sysimage)
-            symlink(original_sysimage, sysimage)
-            args = run_and_get_last_line(`$asysimg_path "$proj" -e "using AutoSysimages; using AutoSysimages; println(julia_args()); exit();"`)
-            @show args
-            @test contains(args, sysimage)
-            rm(sysimage)
+            try
+                cp(original_sysimage, sysimage, force = true)
+                # Test the argument contains the sysimage
+                args = run_and_get_last_line(`$asysimg_path "$proj" -e "using AutoSysimages; using AutoSysimages; println(julia_args()); exit();"`)
+                @show args
+                @test contains(args, sysimage)
+                # Test if the sysimage is really loaded
+                @test success(`$asysimg_path "$proj" -e "using AutoSysimages; AutoSysimages.is_asysimg || exit(1);"`)
+            catch
+                @test false
+            finally
+                rm(sysimage; force = true)
+            end
         end
     end
 end
