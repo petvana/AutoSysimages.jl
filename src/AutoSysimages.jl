@@ -122,7 +122,7 @@ function start()
         statements = Snooping.stop_snooping()
         @info("AutoSysimages: Copy snooped statements to: $(precompiles_file)")
         _append_statements(statements)
-        if !is_asysimg
+        if !is_asysimg && isinteractive()
             @info "There is no sysimage for this project. Do you want to build one?"
             if request(RadioMenu(["Yes", "No"])) == 1
                 build_sysimage()
@@ -486,10 +486,14 @@ function _update_prompt(isbuilding::Bool = false)
     end
 end
 
+function _generate_sysimage_name()
+    datenow = replace("$(Dates.now())", ":" => "-")
+    joinpath(string(active_dir()), "asysimg-$datenow.so")
+end
+
 function _build_system_image()
     t_start = time()
-    datenow = replace("$(Dates.now())", ":" => "-")
-    sysimg_file = joinpath(string(active_dir()), "asysimg-$datenow.so")
+    sysimg_file = _generate_sysimage_name()
 
     # First collect precompile statements for a dummy run (e.g., with -e "")
     @info "AutoSysimages: Collecting precompile statements for empty run (-e \"\")"
