@@ -411,7 +411,7 @@ Feel free to submit a PR."""
     open(script, "w") do io
         for line in readlines(source)
             txt = line
-            if Sys.islinux() || sys.isapple()
+            if Sys.islinux() || Sys.isapple()
                 if startswith(line, "JULIA_EXE=")
                     txt = "JULIA_EXE=$julia_bin # or [INSERT-YOUR-PATH]/julia"
                 end
