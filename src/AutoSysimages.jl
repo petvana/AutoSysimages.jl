@@ -414,7 +414,6 @@ Feel free to submit a PR."""
             if contains(line, "JULIA=")
                 txt = Sys.iswindows() ? "set JULIA=$julia_bin" : "JULIA=$julia_bin"
             end
-        end
             write(io, txt, "\n")
         end
     end
