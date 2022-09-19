@@ -411,16 +411,10 @@ Feel free to submit a PR."""
     open(script, "w") do io
         for line in readlines(source)
             txt = line
-            if Sys.islinux() || Sys.isapple()
-                if startswith(line, "JULIA_EXE=")
-                    txt = "JULIA_EXE=$julia_bin # or [INSERT-YOUR-PATH]/julia"
-                end
+            if contains(line, "JULIA=")
+                txt = Sys.iswindows() ? "set JULIA=$julia_bin" : "JULIA=$julia_bin"
             end
-            if Sys.iswindows()
-                if startswith(line, "set julia=")
-                    txt = "set julia=$julia_bin"
-                end
-            end
+        end
             write(io, txt, "\n")
         end
     end
