@@ -9,7 +9,10 @@ using PackageCompiler
 using TOML
 
 import Base: active_project
-import REPL: REPL.TerminalMenus.request, REPL.TerminalMenus.RadioMenu, REPL.TerminalMenus.MultiSelectMenu
+import REPL:
+    REPL.TerminalMenus.request,
+    REPL.TerminalMenus.RadioMenu,
+    REPL.TerminalMenus.MultiSelectMenu
 
 export start, latest_sysimage, julia_args, build_sysimage, remove_old_sysimages
 export packages_to_include, select_packages, status, add, remove, active_dir, install
@@ -43,7 +46,7 @@ function __init__()
             print(io, "$projpath\n")
         end
     end
-    global precompiles_file =  joinpath(adir, "snoop-file.jl")
+    global precompiles_file = joinpath(adir, "snoop-file.jl")
     global loaded_image = unsafe_string(Base.JLOptions().image_file)
     # Detect if loaded `image` was produced by AutoSysimages.jl
     global is_asysimg = startswith(basename(loaded_image), "asysimg-")
@@ -73,7 +76,8 @@ end
 Get the file with preferences for the active project (`active_dir()`).
 Preferences are stored in `SysimagePreferences.toml` next to the current `Project.toml` file.
 """
-preferences_path(projpath = active_project()) = joinpath(dirname(projpath), "SysimagePreferences.toml")
+preferences_path(projpath = active_project()) =
+    joinpath(dirname(projpath), "SysimagePreferences.toml")
 
 """
     latest_sysimage()
@@ -102,7 +106,7 @@ function julia_args()
     end
     image = latest_sysimage()
     startfile = joinpath(@__DIR__, "start.jl")
-    return (isnothing(image) ? "" : " -J $image") * " -L $startfile" 
+    return (isnothing(image) ? "" : " -J $image") * " -L $startfile"
 end
 
 """
@@ -210,7 +214,7 @@ end
 Ask the user to choose which packages to include into the sysimage.
 """
 function select_packages()
-    all_packages = packages_to_include(;include_all = true) |> collect |> sort
+    all_packages = packages_to_include(; include_all = true) |> collect |> sort
     @info "Please select packages to be included into sysimage:"
     include = _load_preference("include")
     exclude = _load_preference("exclude")
@@ -281,11 +285,11 @@ end
     packages_to_include()::Set{String}
 
 Get list of packages to be included into sysimage.
-It is determined based on "include" or "exclude" options save by `Preferences.jl` 
+It is determined based on "include" or "exclude" options save by `Preferences.jl`
 in `LocalPreferences.toml` file next to the currently-active project.
 Notice `dev` packages are excluded unless they are in `include` list.
 """
-function packages_to_include(;include_all = false)
+function packages_to_include(; include_all = false)
     packages = Set{String}()
     include_AutoSysimages = false
     for (uuid, info) in Pkg.dependencies()
@@ -346,7 +350,7 @@ function status()
     println("`$(preferences_path())`")
 
     println("Packages to be included into sysimage:")
-    infos = Dict{String, Tuple{Any, Pkg.API.PackageInfo}}()
+    infos = Dict{String,Tuple{Any,Pkg.API.PackageInfo}}()
     for (uuid, info) in Pkg.dependencies()
         infos[info.name] = (uuid, info)
     end
@@ -375,9 +379,8 @@ function _default_install_dir()
         return joinpath(homedir(), ".local/bin")
     elseif Sys.isapple()
         return joinpath(homedir(), "bin")
-    # TODO: Support installation for Windows
-    # elseif Sys.iswindows()
-        # return smth
+    elseif Sys.iswindows()
+        return Sys.BINDIR
     else
         return nothing
     end
@@ -389,36 +392,44 @@ end
 This install the `asysimg` scripts.
 (Currently implemented only for Linux.)
 """
-function install(dir=_default_install_dir())
+function install(dir = _default_install_dir())
+
+    dir_exists = ispath(dir)
+    dir_exists || mkpath(dir)
+
     if Sys.islinux() || Sys.isapple()
-        dir_exists = ispath(dir)
-        dir_exists || mkpath(dir)
         script = joinpath(@__DIR__, "..", "scripts", "linux", "asysimg")
-        script = abspath(normpath(script))
-        cp(script, joinpath(dir, "asysimg"), force=true)
-
-        if isinteractive()
-            @info """AutoSysimages: The `asysimg` script was copied to:
-$(script)
-
-Now you can run `asysimg` in terminal (instead of `julia`)"""
-        end
-
-        if !dir_exists
-            @warn """AutoSysimages: Please restart your terminal before running `asysimg`
-to load the script into the `PATH`.
-
-If this not works please add the script into your `PATH`."""
-        end
+        script_fn = "asysimg"
+    elseif Sys.iswindows()
+        script = joinpath(@__DIR__, "..", "scripts", "windows", "asysimg.bat")
+        script_fn = "asysimg.bat"
     else
         @warn """AutoSysimages: Installation is not yet supported for your OS.
 Feel free to submit a PR."""
     end
+
+    script = abspath(normpath(script))
+    cp(script, joinpath(dir, script_fn), force = true)
+
+    if isinteractive()
+        @info """AutoSysimages: The `asysimg` script was copied to:
+$(dir)
+
+Now you can run `asysimg` in terminal (instead of `julia`)"""
+    end
+
+    if !dir_exists
+        @warn """AutoSysimages: Please restart your terminal before running `asysimg`
+to load the script into the `PATH`.
+
+If this not works please add the script into your `PATH`."""
+    end
+
 end
 
 function _warn_outdated()
-    versions = Dict{Base.UUID, VersionNumber}()
-    outdated = Tuple{String, VersionNumber, VersionNumber}[]
+    versions = Dict{Base.UUID,VersionNumber}()
+    outdated = Tuple{String,VersionNumber,VersionNumber}[]
     for (uuid, info) in Pkg.dependencies()
         version = info.version
         isnothing(version) || (versions[uuid] = version)
@@ -449,8 +460,8 @@ function _append_statements(precompiles::Vector{String})
             for precompile in precompiles
                 if precompile ∉ old
                     push!(old, precompile)
-                    write(file, "$precompile\n")   
-                end     
+                    write(file, "$precompile\n")
+                end
             end
         end
     end
@@ -488,7 +499,12 @@ function _build_system_image()
     @info "AutoSysimages: Collecting precompile statements for empty run (-e \"\")"
     empty_precompiles = tempname()
     julia_cmd = joinpath(Sys.BINDIR::String, Base.julia_exename())
-    readlines(pipeline(`$julia_cmd -J $loaded_image -e "" --trace-compile stderr`, stderr = empty_precompiles))
+    readlines(
+        pipeline(
+            `$julia_cmd -J $loaded_image -e "" --trace-compile stderr`,
+            stderr = empty_precompiles,
+        ),
+    )
     precompiles = String[]
     for line in readlines(empty_precompiles)
         if startswith(line, "precompile(") && endswith(line, ")")
@@ -498,12 +514,12 @@ function _build_system_image()
     _append_statements(precompiles)
 
     chained = false
-    try 
+    try
         # Enable chained building of system image
         # See https://github.com/JuliaLang/julia/pull/46045
-        @ccall jl_precompiles_for_sysimage(1::Cuchar)::Cvoid;
+        @ccall jl_precompiles_for_sysimage(1::Cuchar)::Cvoid
         chained = true
-    catch 
+    catch
     end
     if chained
         _build_system_image_chained(sysimg_file)
@@ -514,7 +530,7 @@ function _build_system_image()
     remove_old_sysimages()
 end
 
-function _set_preference!(pair::Pair{String, T}) where T
+function _set_preference!(pair::Pair{String,T}) where {T}
     prefpath = preferences_path()
     if isfile(prefpath)
         project = Base.parsed_toml(prefpath)
@@ -532,7 +548,7 @@ function _set_preference!(pair::Pair{String, T}) where T
         return "3" * x
     end
     open(prefpath, "w") do io
-        TOML.print(io, project; sorted=true, by=by_fce)
+        TOML.print(io, project; sorted = true, by = by_fce)
     end
 end
 
@@ -541,7 +557,7 @@ function _load_preference(key::String)
     !isfile(prefpath) && return nothing
     project = Base.parsed_toml(prefpath)
     if haskey(project, "AutoSysimages")
-        dict = project["AutoSysimages"]  
+        dict = project["AutoSysimages"]
         if dict isa Dict
             return get(dict, key, nothing)
         end
