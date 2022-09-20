@@ -122,7 +122,7 @@ function start()
         statements = Snooping.stop_snooping()
         @info("AutoSysimages: Copy snooped statements to: $(precompiles_file)")
         _append_statements(statements)
-        if !is_asysimg
+        if !is_asysimg && isinteractive()
             @info "There is no sysimage for this project. Do you want to build one?"
             if request(RadioMenu(["Yes", "No"])) == 1
                 build_sysimage()
@@ -493,21 +493,17 @@ function _build_system_image()
 
     # First collect precompile statements for a dummy run (e.g., with -e "")
     @info "AutoSysimages: Collecting precompile statements for empty run (-e \"\")"
-    empty_precompiles = tempname()
-    julia_cmd = joinpath(Sys.BINDIR::String, Base.julia_exename())
-    readlines(
-        pipeline(
-            `$julia_cmd -J $loaded_image -e "" --trace-compile stderr`,
-            stderr = empty_precompiles,
-        ),
-    )
-    precompiles = String[]
-    for line in readlines(empty_precompiles)
-        if startswith(line, "precompile(") && endswith(line, ")")
-            push!(precompiles, line[12:end-1])
+    precompiles_file = tempname()
+    run(`asysimg -J $loaded_image -e "" --trace-compile $precompiles_file`)
+    if isfile(precompiles_file)
+        precompiles = String[]
+        for line in readlines(precompiles_file)
+            if startswith(line, "precompile(") && endswith(line, ")")
+                push!(precompiles, line[12:end-1])
+            end
         end
+        _append_statements(precompiles)
     end
-    _append_statements(precompiles)
 
     chained = false
     try
