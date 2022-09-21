@@ -424,7 +424,7 @@ asysimg_args=`\$JULIA -L $julia_args_file "\$@"`
     open(script_file, "w") do file
         write(file, txt)
     end
-    chmod(script, 0o774)
+    chmod(script_file, 0o774)
 
     if isinteractive()
         @info """AutoSysimages: The `asysimg` is located here:
