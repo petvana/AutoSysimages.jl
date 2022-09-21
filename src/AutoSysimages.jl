@@ -411,7 +411,7 @@ Feel free to submit a PR."""
     txt = if Sys.iswindows()
 """@echo off
 set JULIA=$julia_bin
-for /f "tokens=1-4" %%i in ('%JULIA% -L $julia_args_file %*') do set A=%%i %%j %%k %%l
+for /f "tokens=1-4" %%i in ('%JULIA% -L $julia_args_file') do set A=%%i %%j %%k %%l
 %JULIA% %A% %*
 """
     else
@@ -424,6 +424,7 @@ asysimg_args=`\$JULIA -L $julia_args_file "\$@"`
     open(script_file, "w") do file
         write(file, txt)
     end
+    chmod(script_file, 0o774)
 
     if isinteractive()
         @info """AutoSysimages: The `asysimg` is located here:
