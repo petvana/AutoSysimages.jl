@@ -406,24 +406,33 @@ Feel free to submit a PR."""
     source = joinpath(@__DIR__, "..", "scripts", os, file_name)
     source = abspath(normpath(source))
     julia_bin = unsafe_string(Base.JLOptions().julia_bin)
-
-    script = joinpath(dir, file_name)
-    open(script, "w") do io
-        for line in readlines(source)
-            txt = line
-            if contains(line, "JULIA=")
-                txt = Sys.iswindows() ? "set JULIA=$julia_bin" : "JULIA=$julia_bin"
-            end
-            write(io, txt, "\n")
-        end
+    julia_args_file = joinpath(@__DIR__, "julia_args.jl")
+    script_file = joinpath(dir, file_name)
+    txt = if Sys.iswindows()
+"""@echo off
+set JULIA=$julia_bin
+for /f "tokens=1-4" %%i in ('%JULIA% -L $julia_args_file %*') do set A=%%i %%j %%k %%l
+%JULIA% %A% %*
+"""
+    else
+"""#!/usr/bin/env bash
+JULIA=$julia_bin
+asysimg_args=`\$JULIA -L $julia_args_file "\$@"`
+\$JULIA \$asysimg_args "\$@"
+"""
+    end
+    open(script_file, "w") do file
+        write(file, txt)
     end
     chmod(script, 0o774)
 
     if isinteractive()
-        @info """AutoSysimages: The `asysimg` script was copied to:
-$(dir)
+        @info """AutoSysimages: The `asysimg` is located here:
+$(script_file)
 
-Now you can run `asysimg` in terminal (instead of `julia`)"""
+Now you can run `asysimg` in terminal (instead of `julia`)
+
+"""
     end
 
     if !dir_exists
@@ -509,21 +518,17 @@ function _build_system_image()
 
     # First collect precompile statements for a dummy run (e.g., with -e "")
     @info "AutoSysimages: Collecting precompile statements for empty run (-e \"\")"
-    empty_precompiles = tempname()
-    julia_cmd = joinpath(Sys.BINDIR::String, Base.julia_exename())
-    readlines(
-        pipeline(
-            `$julia_cmd -J $loaded_image -e "" --trace-compile stderr`,
-            stderr = empty_precompiles,
-        ),
-    )
-    precompiles = String[]
-    for line in readlines(empty_precompiles)
-        if startswith(line, "precompile(") && endswith(line, ")")
-            push!(precompiles, line[12:end-1])
+    precompiles_file = tempname()
+    run(`asysimg -J $loaded_image -e "" --trace-compile $precompiles_file`)
+    if isfile(precompiles_file)
+        precompiles = String[]
+        for line in readlines(precompiles_file)
+            if startswith(line, "precompile(") && endswith(line, ")")
+                push!(precompiles, line[12:end-1])
+            end
         end
+        _append_statements(precompiles)
     end
-    _append_statements(precompiles)
 
     chained = false
     try
