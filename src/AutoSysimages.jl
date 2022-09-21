@@ -405,13 +405,33 @@ Feel free to submit a PR."""
     (os, file_name) = Sys.iswindows() ? ("windows", "asysimg.bat") : ("unix", "asysimg")
     source = joinpath(@__DIR__, "..", "scripts", os, file_name)
     source = abspath(normpath(source))
-    cp(source, joinpath(dir, file_name), force = true)
+    julia_bin = unsafe_string(Base.JLOptions().julia_bin)
+    julia_args_file = joinpath(@__DIR__, "julia_args.jl")
+    script_file = joinpath(dir, file_name)
+    txt = if Sys.iswindows()
+"""@echo off
+set JULIA=$julia_bin
+for /f "tokens=1-4" %%i in ('%JULIA% -L $julia_args_file %*') do set A=%%i %%j %%k %%l
+%JULIA% %A% %*
+"""
+    else
+"""#!/usr/bin/env bash
+JULIA=$julia_bin
+asysimg_args=`\$JULIA -L $julia_args_file "\$@"`
+\$JULIA \$asysimg_args "\$@"
+"""
+    end
+    open(script_file, "w") do file
+        write(file, txt)
+    end
 
     if isinteractive()
-        @info """AutoSysimages: The `asysimg` script was copied to:
-$(dir)
+        @info """AutoSysimages: The `asysimg` is located here:
+$(script_file)
 
-Now you can run `asysimg` in terminal (instead of `julia`)"""
+Now you can run `asysimg` in terminal (instead of `julia`)
+
+"""
     end
 
     if !dir_exists
