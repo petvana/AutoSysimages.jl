@@ -390,18 +390,25 @@ end
     install()
 
 This install the `asysimg` scripts.
-(Currently implemented only for Linux.)
+(Currently implemented only for Linux and Windows.)
 """
 function install(dir = _default_install_dir())
-    if isnothing(dir)
+
+    if !(Sys.iswindows() || Sys.isunix())
         @warn """AutoSysimages: Installation is not yet supported for your OS.
-Feel free to submit a PR."""
+        Feel free to submit a PR."""
+        return
+    end
+
+    if isnothing(dir)
+        @warn """Julia install directory not found"""
         return
     end
 
     dir_exists = ispath(dir)
     dir_exists || mkpath(dir)
 
+    # This line should change as more OS are supported
     (os, file_name) = Sys.iswindows() ? ("windows", "asysimg.bat") : ("unix", "asysimg")
     source = joinpath(@__DIR__, "..", "scripts", os, file_name)
     source = abspath(normpath(source))
@@ -427,7 +434,7 @@ asysimg_args=`\$JULIA -L $julia_args_file "\$@"`
     chmod(script_file, 0o774)
 
     if isinteractive()
-        @info """AutoSysimages: The `asysimg` is located here:
+        @info """AutoSysimages: The `asysimg` script is located here:
 $(script_file)
 
 Now you can run `asysimg` in terminal (instead of `julia`)
@@ -442,6 +449,44 @@ to load the script into the `PATH`.
 If this not works please add the script into your `PATH`."""
     end
 
+end
+
+"""
+    uninstall()
+
+This uninstall the `asysimg` scripts.
+(Currently implemented only for Linux.)
+"""
+function uninstall(dir = _default_install_dir())
+
+    if isnothing(dir)
+        @warn """Julia install directory not found"""
+        return
+    end
+
+    dir_exists = ispath(dir)
+    dir_exists || mkpath(dir)
+
+    # This line should change as more OS are supported
+    file_name = Sys.iswindows() ? "asysimg.bat" :  "asysimg"
+    script_file = joinpath(dir, file_name)
+
+
+    if !isfile(script_file)
+        @warn """No AutoSysimages installation found"""
+        return
+    end
+
+    chmod(script_file, 0o774)
+    rm(script_file)
+
+    if isinteractive()
+        @info """AutoSysimages successfully uninstalled
+
+File deleted : $(script_file)
+"""
+
+end
 end
 
 function _warn_outdated()
