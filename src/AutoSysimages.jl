@@ -411,13 +411,13 @@ Feel free to submit a PR."""
     txt = if Sys.iswindows()
 """@echo off
 set JULIA=$julia_bin
-for /f "tokens=1-4" %%i in ('%JULIA% -L $julia_args_file %*') do set A=%%i %%j %%k %%l
+for /f "tokens=1-4" %%i in ('%JULIA% --startup-file=no -L $julia_args_file %*') do set A=%%i %%j %%k %%l
 %JULIA% %A% %*
 """
     else
 """#!/usr/bin/env bash
 JULIA=$julia_bin
-asysimg_args=`\$JULIA -L $julia_args_file "\$@"`
+asysimg_args=`\$JULIA --startup-file=no -L $julia_args_file "\$@"`
 \$JULIA \$asysimg_args "\$@"
 """
     end
