@@ -130,16 +130,25 @@ function start()
         end
     end
     atexit(_atexit)
-    txt = "The package AutoSysimages.jl started!"
-    if is_asysimg
-        txt *= "\n Loaded sysimage:    $loaded_image"
-    else
-        txt *= "\n Loaded sysimage:    Default (You may run AutoSysimages.build_sysimage())"
+    if Base.JLOptions().quiet == 0 # Disabled when `-q` argument is used
+        version = pkgversion(AutoSysimages)
+        dev = ""
+        for (_, info) in Pkg.dependencies()
+            if info.name == "AutoSysimages" && info.is_tracking_path
+                dev = " \`$(info.source)\`"
+            end
+        end
+        txt = "AutoSysimages v$version$dev"
+        if is_asysimg
+            txt *= "\n Loaded sysimage:    $loaded_image"
+        else
+            txt *= "\n Loaded sysimage:    Default (You may run AutoSysimages.build_sysimage())"
+        end
+        txt *= "\n Active directory:   $(active_dir())"
+        txt *= "\n Global snoop file:  $precompiles_file"
+        txt *= "\n Tmp. snoop file:    $(Snooping.snoop_file)"
+        @info txt
     end
-    txt *= "\n Active directory:   $(active_dir())"
-    txt *= "\n Global snoop file:  $precompiles_file"
-    txt *= "\n Tmp. snoop file:    $(Snooping.snoop_file)"
-    @info txt
     if isinteractive()
         _update_prompt()
         is_asysimg && _warn_outdated()
