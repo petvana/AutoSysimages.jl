@@ -131,7 +131,14 @@ function start()
     end
     atexit(_atexit)
     if Base.JLOptions().quiet == 0 # Disabled when `-q` argument is used
-        txt = "The package AutoSysimages.jl started!"
+        version = pkgversion(AutoSysimages)
+        dev = ""
+        for (_, info) in Pkg.dependencies()
+            if info.name == "AutoSysimages" && info.is_tracking_path
+                dev = " \`$(info.source)\`"
+            end
+        end
+        txt = "AutoSysimages v$version$dev"
         if is_asysimg
             txt *= "\n Loaded sysimage:    $loaded_image"
         else
