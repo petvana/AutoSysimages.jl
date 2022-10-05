@@ -457,6 +457,10 @@ end
 This removes the `asysimg` scripts and all the generated files (by calling `cleanup`).
 """
 function uninstall(dir = _default_install_dir();verbose::Bool = true, dry::Bool = false)
+    if isnothing(dir) || !isdir(dir)
+        @warn """Install directory not found."""
+        return
+    end
     file_name = Sys.iswindows() ? "asysimg.bat" : "asysimg"
     script_file = joinpath(dir, file_name)
     if verbose && isfile(script_file)
