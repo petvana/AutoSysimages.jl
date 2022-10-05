@@ -307,15 +307,19 @@ Notice `dev` packages are excluded unless they are in `include` list.
 function packages_to_include(; include_all = false)
     packages = Set{String}()
     include_AutoSysimages = false
-    for (uuid, info) in Pkg.dependencies()
-        if info.is_direct_dep && !info.is_tracking_path
-            push!(packages, info.name)
+    try
+        for (uuid, info) in Pkg.dependencies()
+            if info.is_direct_dep && !info.is_tracking_path
+                push!(packages, info.name)
+            end
+            # Include AutoSysimages only if it is not in "dev" mode
+            if info.name == "AutoSysimages" && !info.is_tracking_path
+                include_AutoSysimages = true
+            end
         end
-        # Include AutoSysimages only if it is not in "dev" mode
-        if info.name == "AutoSysimages" && !info.is_tracking_path
-            include_AutoSysimages = true
-        end
+    catch
     end
+    include_all && push!(packages, "AutoSysimages")
     include_all && return packages
     include = _load_preference("include")
     exclude = _load_preference("exclude")
@@ -579,7 +583,9 @@ function _build_system_image()
     # First collect precompile statements for a dummy run (e.g., with -e "")
     @info "AutoSysimages: Collecting precompile statements for empty run (-e \"\")"
     precompiles_file = tempname()
-    run(`asysimg -J $loaded_image -e "" --trace-compile $precompiles_file`)
+    mkpath(dirname(precompiles_file))
+    asysimg_exec = Sys.iswindows() ? "asysimg.bat" : "asysimg"
+    run(`$asysimg_exec -J $loaded_image -e "" --trace-compile $precompiles_file`)
     if isfile(precompiles_file)
         precompiles = String[]
         for line in readlines(precompiles_file)
