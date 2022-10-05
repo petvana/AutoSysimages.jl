@@ -35,4 +35,6 @@ remove
 active_dir
 preferences_path
 install
+uninstall
+cleanup
 ```
