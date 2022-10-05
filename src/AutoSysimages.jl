@@ -485,13 +485,6 @@ function cleanup(;verbose::Bool = true, dry::Bool = false)
         verbose && @info "AutoSysimages: Removing `$version_dir`:"
         for project_dir = readdir(version_dir; join = true)
             verbose && @info " - `$project_dir`"
-            project_path_file = joinpath(project_dir, "project-path.txt")
-            if isfile(project_path_file)
-                project_path = readlines(project_path_file)[1]
-                rm_fce(joinpath(dirname(project_path), "SysimagePreferences.toml"))
-            else
-                verbose && @warn " - No project path!"
-            end
             for file = readdir(project_dir; join = true)
                 rm_fce(file)
             end
