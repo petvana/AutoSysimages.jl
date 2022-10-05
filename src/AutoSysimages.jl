@@ -134,10 +134,14 @@ function start()
     if Base.JLOptions().quiet == 0 # Disabled when `-q` argument is used
         version = pkgversion(AutoSysimages)
         dev = ""
-        for (_, info) in Pkg.dependencies()
-            if info.name == "AutoSysimages" && info.is_tracking_path
-                dev = " \`$(info.source)\`"
+        try
+            for (_, info) in Pkg.dependencies()
+                if info.name == "AutoSysimages" && info.is_tracking_path
+                    dev = " \`$(info.source)\`"
+                end
             end
+        catch
+            dev = " (cannot detect if in dev mode)"
         end
         txt = "AutoSysimages v$version$dev"
         if is_asysimg
@@ -145,9 +149,10 @@ function start()
         else
             txt *= "\n Loaded sysimage:    Default (You may run AutoSysimages.build_sysimage())"
         end
-        txt *= "\n Active directory:   $(active_dir())"
-        txt *= "\n Global snoop file:  $precompiles_file"
-        txt *= "\n Tmp. snoop file:    $(Snooping.snoop_file)"
+        txt *= "\n Active project:    `$(active_project())`"
+        txt *= "\n Active directory:  `$(active_dir())`"
+        txt *= "\n Global snoop file: `$precompiles_file`"
+        txt *= "\n Tmp. snoop file:   `$(Snooping.snoop_file)`"
         @info txt
     end
     if isinteractive()
