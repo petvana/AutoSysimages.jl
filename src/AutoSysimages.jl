@@ -134,10 +134,14 @@ function start()
     if Base.JLOptions().quiet == 0 # Disabled when `-q` argument is used
         version = pkgversion(AutoSysimages)
         dev = ""
-        for (_, info) in Pkg.dependencies()
-            if info.name == "AutoSysimages" && info.is_tracking_path
-                dev = " \`$(info.source)\`"
+        try
+            for (_, info) in Pkg.dependencies()
+                if info.name == "AutoSysimages" && info.is_tracking_path
+                    dev = " \`$(info.source)\`"
+                end
             end
+        catch
+            dev = " (cannot detect if in dev mode)"
         end
         txt = "AutoSysimages v$version$dev"
         if is_asysimg
@@ -145,9 +149,10 @@ function start()
         else
             txt *= "\n Loaded sysimage:    Default (You may run AutoSysimages.build_sysimage())"
         end
-        txt *= "\n Active directory:   $(active_dir())"
-        txt *= "\n Global snoop file:  $precompiles_file"
-        txt *= "\n Tmp. snoop file:    $(Snooping.snoop_file)"
+        txt *= "\n Active project:    `$(active_project())`"
+        txt *= "\n Active directory:  `$(active_dir())`"
+        txt *= "\n Global snoop file: `$precompiles_file`"
+        txt *= "\n Tmp. snoop file:   `$(Snooping.snoop_file)`"
         @info txt
     end
     if isinteractive()
@@ -302,15 +307,19 @@ Notice `dev` packages are excluded unless they are in `include` list.
 function packages_to_include(; include_all = false)
     packages = Set{String}()
     include_AutoSysimages = false
-    for (uuid, info) in Pkg.dependencies()
-        if info.is_direct_dep && !info.is_tracking_path
-            push!(packages, info.name)
+    try
+        for (uuid, info) in Pkg.dependencies()
+            if info.is_direct_dep && !info.is_tracking_path
+                push!(packages, info.name)
+            end
+            # Include AutoSysimages only if it is not in "dev" mode
+            if info.name == "AutoSysimages" && !info.is_tracking_path
+                include_AutoSysimages = true
+            end
         end
-        # Include AutoSysimages only if it is not in "dev" mode
-        if info.name == "AutoSysimages" && !info.is_tracking_path
-            include_AutoSysimages = true
-        end
+    catch
     end
+    include_all && push!(packages, "AutoSysimages")
     include_all && return packages
     include = _load_preference("include")
     exclude = _load_preference("exclude")
@@ -418,7 +427,7 @@ Feel free to submit a PR."""
     txt = if Sys.iswindows()
 """@echo off
 set JULIA=$julia_bin
-for /f "tokens=1-4" %%i in ('%JULIA% --startup-file=no -L $julia_args_file') do set A=%%i %%j %%k %%l
+for /f "tokens=1-4" %%i in ('%JULIA% --startup-file=no -L $julia_args_file %*') do set A=%%i %%j %%k %%l
 %JULIA% %A% %*
 """
     else
@@ -562,15 +571,21 @@ function _update_prompt(isbuilding::Bool = false)
     end
 end
 
+function _generate_sysimage_name()
+    datenow = replace("$(Dates.now())", ":" => "-")
+    joinpath(string(active_dir()), "asysimg-$datenow.so")
+end
+
 function _build_system_image()
     t_start = time()
-    datenow = replace("$(Dates.now())", ":" => "-")
-    sysimg_file = joinpath(string(active_dir()), "asysimg-$datenow.so")
+    sysimg_file = _generate_sysimage_name()
 
     # First collect precompile statements for a dummy run (e.g., with -e "")
     @info "AutoSysimages: Collecting precompile statements for empty run (-e \"\")"
     precompiles_file = tempname()
-    run(`asysimg -J $loaded_image -e "" --trace-compile $precompiles_file`)
+    mkpath(dirname(precompiles_file))
+    asysimg_exec = Sys.iswindows() ? "asysimg.bat" : "asysimg"
+    run(`$asysimg_exec -J $loaded_image -e "" --trace-compile $precompiles_file`)
     if isfile(precompiles_file)
         precompiles = String[]
         for line in readlines(precompiles_file)
